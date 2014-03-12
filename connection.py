@@ -1,5 +1,12 @@
 
+from . import libpq
+
 class Connection(object):
+    def __init__(self, PGconn, **kwargs):
+        self.conn = PGconn
+        self.kwargs = kwargs
+        self.cursors = []
+
     def close(self):
         '''
         Close the connection now (rather than whenever .__del__() is called).
@@ -10,6 +17,12 @@ class Connection(object):
         the connection. Note that closing a connection without committing the
         changes first will cause an implicit rollback to be performed.
         '''
+        for cursor in self.cursors:
+            cursor.close()
+
+        if self.conn is not None:
+            libpq.PQfinish(self.conn)
+            self.conn = None
 
     def commit(self):
         '''
@@ -21,6 +34,9 @@ class Connection(object):
         Database modules that do not support transactions should implement this
         method with void functionality.
         '''
+        res = libpq.PQexec(self.conn, 'COMMIT')
+        status = libpq.PQresultStatus(res)
+
 
     def rollback(self):
         '''
@@ -32,6 +48,7 @@ class Connection(object):
         a connection without committing the changes first will cause an implicit
         rollback to be performed.
         '''
+        libpq.PQexec(self.conn, 'ROLLBACK')
 
     def cursor(self):
         '''
@@ -41,3 +58,6 @@ class Connection(object):
         will have to emulate cursors using other means to the extent needed by
         this specification.
         '''
+        cursor = Cursor(self)
+        self.cursors.append(cursor)
+        return cursor
