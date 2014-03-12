@@ -12,6 +12,8 @@ description = namedtuple('description', (
 ))
 
 class Cursor(object):
+    def __init__(self, conn):
+        self.conn = conn
 
     @property
     def description(self):
@@ -76,6 +78,9 @@ class Cursor(object):
         subclass) exception will be raised if any operation is attempted with
         the cursor.
         '''
+        if self.result:
+            libpq.PQclear(self.result)
+            self.result = None
 
     def execute(self, operation, parameters=None):
         '''
@@ -104,6 +109,20 @@ class Cursor(object):
 
         Return values are not defined.
         '''
+        if self.result:
+            libpq.PQclear(self.result)
+            self.result = None
+        # XXX Prepare cache
+        if parameters:
+            self.result = libpq.PQexecParams(self.conn, operation, len(parameters), None, parameters, None, None, 1)
+        else:
+            self.result = libpq.PQexec(self.conn, operation)
+        # Did it succeed?
+        status = libpq.PQresultStatus(self.conn)
+        if status == libpq.PGRES_FATAL_ERROR:
+            raise
+        # How many rows?
+        self._rowcount = libpq.PQntuples(self.result)
 
     def executemany(self, operation, seq_of_parameters):
         '''
