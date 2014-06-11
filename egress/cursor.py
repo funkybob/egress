@@ -1,4 +1,7 @@
 
+from .exceptions import *
+from . import types
+
 from collections import namedtuple
 
 description = namedtuple('description', (
@@ -14,6 +17,40 @@ description = namedtuple('description', (
 class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
+        self._cleanup()
+
+    def _cleanup(self):
+        '''
+        Internal function to clean up state when beginning a new operation.
+        '''
+        if self._result:
+            libpq.PQclear(self._result)
+            self._result = None
+        self._rowcount = None
+        self._description = None
+
+    def _set_result(self, result):
+        '''
+        Given a result object, update all our attributes.
+        '''
+        self._cleanup()
+
+        self._result = result
+        nfields = libpq.PQnfields(result)
+        desc = []
+        for field in range(nfields):
+            ftype = libpq.PQftype(field)
+            fmod = libpq.PQfmod(field)
+            desc.append(description(
+                name = libpq.PQfname(field)
+                types.infer_type(ftype, fmod),
+                None,
+                libpq.PQfsize(field),
+                None,
+                None,
+                None,
+            ))
+        self._description = desc
 
     @property
     def description(self):
@@ -42,6 +79,7 @@ class Cursor(object):
         The type_code can be interpreted by comparing it to the Type Objects
         specified in the section below.
         '''
+        return _description
 
     @property
     def rowcount(self):
@@ -54,6 +92,7 @@ class Cursor(object):
         cursor or the rowcount of the last operation is cannot be determined by
         the interface.
         '''
+        return self._rowcount
 
     def callproc(self, procname, parameters=None):
         '''
@@ -78,9 +117,9 @@ class Cursor(object):
         subclass) exception will be raised if any operation is attempted with
         the cursor.
         '''
-        if self.result:
-            libpq.PQclear(self.result)
-            self.result = None
+        self._cleanup()
+        self.conn._close_cursor(self)
+        self.conn = None
 
     def execute(self, operation, parameters=None):
         '''
@@ -109,20 +148,18 @@ class Cursor(object):
 
         Return values are not defined.
         '''
-        if self.result:
-            libpq.PQclear(self.result)
-            self.result = None
+        self._cleanup()
         # XXX Prepare cache
         if parameters:
-            self.result = libpq.PQexecParams(self.conn, operation, len(parameters), None, parameters, None, None, 1)
-        else:
-            self.result = libpq.PQexec(self.conn, operation)
+            self._result = libpq.PQexecParams(self.conn, operation, len(parameters), None, parameters, None, None, 1)
+        else:  # XXX Do we want this?  Non-binary result format?
+            self._result = libpq.PQexec(self.conn, operation)
         # Did it succeed?
         status = libpq.PQresultStatus(self.conn)
         if status == libpq.PGRES_FATAL_ERROR:
             raise
-        # How many rows?
-        self._rowcount = libpq.PQntuples(self.result)
+
+        self._set_result(self._result)
 
     def executemany(self, operation, seq_of_parameters):
         '''
@@ -144,6 +181,18 @@ class Cursor(object):
 
         Return values are not defined.
         '''
+        # Prepare
+        prepared = libpq.PQprepare(self.conn, '', operation, len(seq_of_parameters[0]), self._guess_types(seq_of_parameters[0]))
+        #
+        result = None
+        for params in seq_of_parameters:
+            if result:
+                libpq.PQclear(result)
+            result = self.executeprepared(prepared, params)
+
+        # Need a hook for this
+        self._set_result(result)
+        self._rowcount = libpq.PQntuples(result)
 
     def fetchone(self):
         '''
@@ -153,6 +202,8 @@ class Cursor(object):
         An Error (or subclass) exception is raised if the previous call to
         .execute*() did not produce any result set or no call was issued yet.
         '''
+        if not self._result:
+            raise InterfaceError('No results to fetch.')
 
     def fetchmany(size=None):
         # size = cursor.arraysize
