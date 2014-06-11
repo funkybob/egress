@@ -73,3 +73,8 @@ DATETIME = DBAPITypeObject()
 # This type object is used to describe the "Row ID" column in a database.
 ROWID = DBAPITypeObject()
 
+def infer_type(ftype, fmod):
+    '''
+    Given a postgres type OID and modifier, infer the related Type class
+    '''
+
