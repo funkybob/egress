@@ -61,3 +61,12 @@ class Connection(object):
         cursor = Cursor(self)
         self.cursors.append(cursor)
         return cursor
+
+    def _close_cursor(self, cursor):
+        '''
+        Remove a cursor from out tracking list.
+        '''
+        try:
+            self.cursors.remove(cursor)
+        except ValueError:
+            pass
