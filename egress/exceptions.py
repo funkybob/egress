@@ -1,3 +1,6 @@
+class StandardError(Exception):
+    pass
+
 
 class Warning(StandardError):
     '''
