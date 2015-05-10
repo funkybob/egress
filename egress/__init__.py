@@ -17,8 +17,9 @@ def connect(**kwargs):
     conn_str = ' '.join([
         '='.join(item)
         for item in kwargs.items()
+        if item[1]
     ])
-    conn = libpq.PQconnectdb(conn_str)
+    conn = libpq.PQconnectdb(conn_str.encode('utf-8'))
     return Connection(conn, **kwargs)
 
 apilevel = '2.0'
