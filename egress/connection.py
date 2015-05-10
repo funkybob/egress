@@ -1,11 +1,14 @@
 
 from . import libpq
+from .cursor import Cursor
+
 
 class Connection(object):
     def __init__(self, PGconn, **kwargs):
         self.conn = PGconn
         self.kwargs = kwargs
         self.cursors = []
+        self._status = libpq.PQstatus(PGconn)
 
     def close(self):
         '''
