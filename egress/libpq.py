@@ -59,6 +59,7 @@ PQexecParams.argtypes = [PGconn_p,
                         POINTER(c_int),
                         c_int,
                         ]
+PQexecParams.restype = PGresult_p
 
 
 # Result status values
