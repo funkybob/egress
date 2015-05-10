@@ -1,5 +1,6 @@
 
 from .exceptions import *
+from . import libpq
 from . import types
 
 from collections import namedtuple
@@ -17,6 +18,7 @@ description = namedtuple('description', (
 class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
+        self._result = None
         self._cleanup()
 
     def _cleanup(self):
@@ -36,21 +38,29 @@ class Cursor(object):
         self._cleanup()
 
         self._result = result
-        nfields = libpq.PQnfields(result)
+        self._nfields = nfields = libpq.PQnfields(result)
         desc = []
         for field in range(nfields):
-            ftype = libpq.PQftype(field)
-            fmod = libpq.PQfmod(field)
+            ftype = libpq.PQftype(self._result, field)
+            fmod = libpq.PQfmod(self._result, field)
             desc.append(description(
-                name = libpq.PQfname(field)
+                libpq.PQfname(self._result, field),
                 types.infer_type(ftype, fmod),
                 None,
-                libpq.PQfsize(field),
+                libpq.PQfsize(self._result, field),
                 None,
                 None,
                 None,
             ))
         self._description = desc
+        self._rowcount = libpq.PQntuples(result)
+        self._resultrow = -1
+
+    def __iter__(self):
+        '''
+        Yield records from result.
+        '''
+        yield self.fetchone()
 
     @property
     def description(self):
@@ -79,7 +89,7 @@ class Cursor(object):
         The type_code can be interpreted by comparing it to the Type Objects
         specified in the section below.
         '''
-        return _description
+        return self._description
 
     @property
     def rowcount(self):
@@ -150,12 +160,14 @@ class Cursor(object):
         '''
         self._cleanup()
         # XXX Prepare cache
+        if isinstance(operation, str):
+            operation = operation.encode('utf-8')
         if parameters:
-            self._result = libpq.PQexecParams(self.conn, operation, len(parameters), None, parameters, None, None, 1)
+            self._result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, parameters, None, None, 1)
         else:  # XXX Do we want this?  Non-binary result format?
-            self._result = libpq.PQexec(self.conn, operation)
+            self._result = libpq.PQexec(self.conn.conn, operation)
         # Did it succeed?
-        status = libpq.PQresultStatus(self.conn)
+        status = libpq.PQresultStatus(self.conn.conn)
         if status == libpq.PGRES_FATAL_ERROR:
             raise
 
@@ -192,7 +204,6 @@ class Cursor(object):
 
         # Need a hook for this
         self._set_result(result)
-        self._rowcount = libpq.PQntuples(result)
 
     def fetchone(self):
         '''
@@ -204,6 +215,20 @@ class Cursor(object):
         '''
         if not self._result:
             raise InterfaceError('No results to fetch.')
+        self._resultrow += 1
+        rownum = self._resultrow
+
+        rec = []
+        #for idx in range(self._nfields):
+        for idx, desc in enumerate(self._description):
+            print(desc)
+            if libpq.PQgetisnull(self._result, rownum, idx):
+                val = None
+            else:
+                val = libpq.PQgetvalue(self._result, rownum, idx)
+            rec.append(val)
+        return rec
+
 
     def fetchmany(size=None):
         # size = cursor.arraysize
