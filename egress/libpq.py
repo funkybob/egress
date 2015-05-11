@@ -34,7 +34,7 @@ class PGresult(Structure):
 
 PGresult_p = POINTER(PGresult)
 
-Oid = c_int
+Oid = c_uint
 
 # PGresult *PQexec(PGconn *conn, const char *command);
 PQexec = libpq.PQexec
