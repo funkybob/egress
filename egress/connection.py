@@ -40,7 +40,6 @@ class Connection(object):
         res = libpq.PQexec(self.conn, 'COMMIT')
         status = libpq.PQresultStatus(res)
 
-
     def rollback(self):
         '''
         This method is optional since not all databases provide transaction
@@ -48,8 +47,8 @@ class Connection(object):
 
         In case a database does provide transactions this method causes the
         database to roll back to the start of any pending transaction. Closing
-        a connection without committing the changes first will cause an implicit
-        rollback to be performed.
+        a connection without committing the changes first will cause an
+        implicit rollback to be performed.
         '''
         libpq.PQexec(self.conn, 'ROLLBACK')
 

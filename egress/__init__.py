@@ -7,6 +7,7 @@ from . import libpq
 
 # Module Interface
 
+
 def connect(**kwargs):
     '''
     Constructor for creating a connection to the database.
