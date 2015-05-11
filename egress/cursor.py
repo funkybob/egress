@@ -15,6 +15,7 @@ Description = namedtuple('Description', (
     'null_ok',
 ))
 
+
 class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
@@ -84,9 +85,9 @@ class Cursor(object):
         are optional and are set to None if no meaningful values can be
         provided.
 
-        This attribute will be None for operations that do not return rows or if
-        the cursor has not had an operation invoked via the .execute*() method
-        yet.
+        This attribute will be None for operations that do not return rows or
+        if the cursor has not had an operation invoked via the .execute*()
+        method yet.
 
         The type_code can be interpreted by comparing it to the Type Objects
         specified in the section below.
@@ -227,12 +228,13 @@ class Cursor(object):
         rec = []
         for idx, desc in enumerate(self._description):
             val = libpq.PQgetvalue(self._result, rownum, idx)
-            val_len = libpq.PQgetlength(self._result, rownum, idx)
+            vlen = libpq.PQgetlength(self._result, rownum, idx)
             if not val and libpq.PQgetisnull(self._result, rownum, idx):
                 val = None
+            else:
+                val = desc.type_code(val, vlen)
             rec.append(val)
         return rec
-
 
     def fetchmany(size=None):
         # size = cursor.arraysize
@@ -242,18 +244,18 @@ class Cursor(object):
         no more rows are available.
 
         The number of rows to fetch per call is specified by the parameter. If
-        it is not given, the cursor's arraysize determines the number of rows to
-        be fetched. The method should try to fetch as many rows as indicated by
-        the size parameter. If this is not possible due to the specified number
-        of rows not being available, fewer rows may be returned.
+        it is not given, the cursor's arraysize determines the number of rows
+        to be fetched. The method should try to fetch as many rows as indicated
+        by the size parameter. If this is not possible due to the specified
+        number of rows not being available, fewer rows may be returned.
 
         An Error (or subclass) exception is raised if the previous call to
         .execute*() did not produce any result set or no call was issued yet.
 
         Note there are performance considerations involved with the size
         parameter. For optimal performance, it is usually best to use the
-        .arraysize attribute. If the size parameter is used, then it is best for
-        it to retain the same value from one .fetchmany() call to the next.
+        .arraysize attribute. If the size parameter is used, then it is best
+        for it to retain the same value from one .fetchmany() call to the next.
         '''
 
     def fetchall(self):
