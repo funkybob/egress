@@ -9,6 +9,7 @@ class Warning(StandardError):
     in the module exceptions).
     '''
 
+
 class Error(StandardError):
     '''
     Exception that is the base class of all other error exceptions. You can use
@@ -17,11 +18,13 @@ class Error(StandardError):
     subclass of the Python StandardError (defined in the module exceptions).
     '''
 
+
 class InterfaceError(Error):
     '''
     Exception raised for errors that are related to the database interface
     rather than the database itself. It must be a subclass of Error.
     '''
+
 
 class DatabaseError(Error):
     '''
@@ -29,12 +32,14 @@ class DatabaseError(Error):
     subclass of Error.
     '''
 
+
 class DataError(DatabaseError):
     '''
     Exception raised for errors that are due to problems with the processed
     data like division by zero, numeric value out of range, etc. It must be a
     subclass of DatabaseError.
     '''
+
 
 class OperationalError(DatabaseError):
     '''
@@ -45,11 +50,13 @@ class OperationalError(DatabaseError):
     etc. It must be a subclass of DatabaseError.
     '''
 
+
 class IntegrityError(DatabaseError):
     '''
     Exception raised when the relational integrity of the database is affected,
     e.g. a foreign key check fails. It must be a subclass of DatabaseError.
     '''
+
 
 class InternalError(DatabaseError):
     '''
@@ -58,12 +65,14 @@ class InternalError(DatabaseError):
     be a subclass of DatabaseError.
     '''
 
+
 class ProgrammingError(DatabaseError):
     '''
     Exception raised for programming errors, e.g. table not found or already
     exists, syntax error in the SQL statement, wrong number of parameters
     specified, etc. It must be a subclass of DatabaseError.
     '''
+
 
 class NotSupportedError(DatabaseError):
     '''
@@ -72,4 +81,3 @@ class NotSupportedError(DatabaseError):
     that does not support transaction or has transactions turned off. It must
     be a subclass of DatabaseError.
     '''
-
