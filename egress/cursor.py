@@ -5,7 +5,7 @@ from . import types
 
 from collections import namedtuple
 
-description = namedtuple('description', (
+Description = namedtuple('Description', (
     'name',
     'type_code',
     'display_size',
@@ -41,13 +41,15 @@ class Cursor(object):
         self._nfields = nfields = libpq.PQnfields(result)
         desc = []
         for field in range(nfields):
-            ftype = libpq.PQftype(self._result, field)
-            fmod = libpq.PQfmod(self._result, field)
-            desc.append(description(
-                libpq.PQfname(self._result, field),
+            ftype = libpq.PQftype(result, field)
+            fmod = libpq.PQfmod(result, field)
+            fname = libpq.PQfname(result, field)
+            fsize = libpq.PQfsize(result, field)
+            desc.append(Description(
+                fname,
                 types.infer_type(ftype, fmod),
                 None,
-                libpq.PQfsize(self._result, field),
+                fsize,
                 None,
                 None,
                 None,
@@ -158,20 +160,21 @@ class Cursor(object):
 
         Return values are not defined.
         '''
-        self._cleanup()
-        # XXX Prepare cache
         if isinstance(operation, str):
             operation = operation.encode('utf-8')
-        if parameters:
-            self._result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, parameters, None, None, 1)
-        else:  # XXX Do we want this?  Non-binary result format?
-            self._result = libpq.PQexec(self.conn.conn, operation)
+
+        if parameters is None:
+            parameters = []
+
+        # self._result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, parameters, None, None, 1)
+        result = libpq.PQexecParams(self.conn.conn, operation, 0, None, None, None, None, 1)
+
         # Did it succeed?
-        status = libpq.PQresultStatus(self.conn.conn)
+        status = libpq.PQresultStatus(result)
         if status == libpq.PGRES_FATAL_ERROR:
             raise
 
-        self._set_result(self._result)
+        self._set_result(result)
 
     def executemany(self, operation, seq_of_parameters):
         '''
@@ -215,17 +218,18 @@ class Cursor(object):
         '''
         if not self._result:
             raise InterfaceError('No results to fetch.')
+
+        if self._resultrow == self._rowcount:
+            return None
         self._resultrow += 1
         rownum = self._resultrow
 
         rec = []
-        #for idx in range(self._nfields):
         for idx, desc in enumerate(self._description):
-            print(desc)
-            if libpq.PQgetisnull(self._result, rownum, idx):
+            val = libpq.PQgetvalue(self._result, rownum, idx)
+            val_len = libpq.PQgetlength(self._result, rownum, idx)
+            if not val and libpq.PQgetisnull(self._result, rownum, idx):
                 val = None
-            else:
-                val = libpq.PQgetvalue(self._result, rownum, idx)
             rec.append(val)
         return rec
 
