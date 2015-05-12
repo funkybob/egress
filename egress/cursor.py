@@ -1,9 +1,10 @@
 
+from collections import namedtuple
+from ctypes import c_char_p
+
 from .exceptions import *
 from . import libpq
 from . import types
-
-from collections import namedtuple
 
 Description = namedtuple('Description', (
     'name',
@@ -64,6 +65,13 @@ class Cursor(object):
         Yield records from result.
         '''
         yield self.fetchone()
+
+    def _prepare_param(self, param):
+        if isinstance(param, bytes):
+            return param
+        if isinstance(param, str):
+            return param.encode('utf-8')
+        return str(param).encode('utf-8')
 
     @property
     def description(self):
@@ -167,13 +175,21 @@ class Cursor(object):
         if parameters is None:
             parameters = []
 
-        # self._result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, parameters, None, None, 1)
-        result = libpq.PQexecParams(self.conn.conn, operation, 0, None, None, None, None, 1)
+        parameters = [
+            self._prepare_param(param)
+            for param in parameters
+        ]
+        param_array = c_char_p * len(parameters)
+        params = param_array(*parameters)
+
+        result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, params, None, None, 1)
 
         # Did it succeed?
         status = libpq.PQresultStatus(result)
         if status == libpq.PGRES_FATAL_ERROR:
-            raise
+            msg = libpq.PQresultErrorMessage(result)
+            libpq.PQclear(result)
+            raise SyntaxError(msg)
 
         self._set_result(result)
 
