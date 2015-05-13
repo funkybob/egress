@@ -146,7 +146,6 @@ def parse_ipaddr(value, vlen, ftype=None, fmod=None):
 
 
 def parse_jsonb(value, vlen, ftype=None, fmod=None):
-    print(value[:vlen])
     if value[0] == b'\x01':
         return json.loads(value[1:vlen].decode('utf-8'))
     return value[:vlen]
@@ -178,7 +177,6 @@ def infer_type(ftype, fmod):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    print('Infer type: %r %r' % (ftype, fmod,))
     return partial(
         TYPE_MAP.get(ftype, parse_dummy),
         ftype=ftype,
