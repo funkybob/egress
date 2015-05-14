@@ -4,37 +4,81 @@ from ctypes import *
 
 libpq = cdll.LoadLibrary('libpq.dylib')
 
+Oid = c_uint
+
+# Connection status values
+CONNECTION_OK = 0
+CONNECTION_BAD = 1
+# XXX The rest are for async connections
+CONNECTION_STARTED = 2              # Waiting for connection to be made.
+CONNECTION_MADE = 3                 # Connection OK; waiting to send.
+CONNECTION_AWAITING_RESPONSE = 4    # Waiting for a response from the postmaster
+CONNECTION_AUTH_OK = 5              # Received authentication; waiting for
+                                    # backend startup.
+CONNECTION_SETENV = 6               # Negotiating environment.
+CONNECTION_SSL_STARTUP = 7          # Negotiating SSL.
+CONNECTION_NEEDED = 8               # Internal state: connect() needed
+
+ConnStatusType = c_int
+
+# Result status values
+PGRES_EMPTY_QUERY = 0       # empty query string was executed
+PGRES_COMMAND_OK = 1        # a query command that doesn't return anything was
+                            # executed properly by the backend
+PGRES_TUPLES_OK = 2         # a query command that returns tuples was executed
+                            # properly by the backend, PGresult contains the
+                            # result tuples
+PGRES_COPY_OUT = 3          # Copy Out data transfer in progress
+PGRES_COPY_IN = 4           # Copy In data transfer in progress
+PGRES_BAD_RESPONSE = 5      # an unexpected response was recv'd from the
+                            # backend
+PGRES_NONFATAL_ERROR = 6    # notice or warning message
+PGRES_FATAL_ERROR = 7       # query failed
+PGRES_COPY_BOTH = 8         # Copy In/Out data transfer in progress
+PGRES_SINGLE_TUPLE = 9      # single tuple from larger resultset
+
+ExecStatusType = c_int
+
+# Transaction status values
+PQTRANS_IDLE = 0        # connection idle */
+PQTRANS_ACTIVE = 1      # command in progress */
+PQTRANS_INTRANS = 2     # idle, within transaction block */
+PQTRANS_INERROR = 3     # idle, within failed transaction */
+PQTRANS_UNKNOWN = 4     # cannot determine status */
+
+TransStatusType = c_int
+
+
 class PGconn(Structure):
     _fields_ = []
 
 PGconn_p = POINTER(PGconn)
 
-# PGconn *PQconnectdb(const char *conninfo);
-PQconnectdb = libpq.PQconnectdb
-PQconnectdb.argtypes = [c_char_p]
-PQconnectdb.restype = PGconn_p
-
-
-PQfinish = libpq.PQfinish
-PQfinish.argtypes = [PGconn_p]
-PQfinish.restype = None
-
-ConnStatusType = c_int
-
-CONNECTION_OK = 0
-CONNECTION_BAD = 1
-
-# ConnStatusType PQstatus(const PGconn *conn);
-PQstatus = libpq.PQstatus
-PQstatus.argtypes = [PGconn_p]
-PQstatus.restype = ConnStatusType
 
 class PGresult(Structure):
     _fields_ = []
 
 PGresult_p = POINTER(PGresult)
 
-Oid = c_uint
+# PGconn *PQconnectdb(const char *conninfo);
+PQconnectdb = libpq.PQconnectdb
+PQconnectdb.argtypes = [c_char_p]
+PQconnectdb.restype = PGconn_p
+
+# void PQfinish(PGconn *conn);
+PQfinish = libpq.PQfinish
+PQfinish.argtypes = [PGconn_p]
+PQfinish.restype = None
+
+# void PQreset(PGconn *conn);
+PQreset = libpq.PQreset
+PQreset.argtypes = [PGconn_p]
+PQreset.restype = None
+
+# ConnStatusType PQstatus(const PGconn *conn);
+PQstatus = libpq.PQstatus
+PQstatus.argtypes = [PGconn_p]
+PQstatus.restype = ConnStatusType
 
 # PGresult *PQexec(PGconn *conn, const char *command);
 PQexec = libpq.PQexec
@@ -51,32 +95,20 @@ PQexec.restype = PGresult_p
 #                        int resultFormat);
 PQexecParams = libpq.PQexecParams
 PQexecParams.argtypes = [PGconn_p,
-                        c_char_p,
-                        c_int,
-                        POINTER(Oid),
-                        POINTER(c_char_p),
-                        POINTER(c_int),
-                        POINTER(c_int),
-                        c_int,
-                        ]
+                         c_char_p,
+                         c_int,
+                         POINTER(Oid),
+                         POINTER(c_char_p),
+                         POINTER(c_int),
+                         POINTER(c_int),
+                         c_int,
+                         ]
 PQexecParams.restype = PGresult_p
 
 
-# Result status values
-PGRES_EMPTY_QUERY = 0
-PGRES_COMMAND_OK = 1
-PGRES_TUPLES_OK = 2
-PGRES_COPY_OUT = 3
-PGRES_COPY_IN = 4
-PGRES_BAD_RESPONSE = 5
-PGRES_NONFATAL_ERROR = 6
-PGRES_FATAL_ERROR = 7
-
-ExecStatusType = c_int
-
 # ExecStatusType PQresultStatus(const PGresult *res);
 PQresultStatus = libpq.PQresultStatus
-PQresultStatus.argtypes = [PGconn_p]
+PQresultStatus.argtypes = [PGresult_p]
 PQresultStatus.restype = ExecStatusType
 
 
@@ -91,11 +123,13 @@ PQclear = libpq.PQclear
 PQclear.argtypes = [PGresult_p]
 PQclear.restype = None
 
+
 # Oid PQftype(const PGresult *res,
 #             int column_number);
 PQftype = libpq.PQftype
 PQftype.argtypes = [PGresult_p, c_int]
 PQftype.restype = Oid
+
 
 # int PQfmod(const PGresult *res,
 #            int column_number);
@@ -103,11 +137,13 @@ PQfmod = libpq.PQfmod
 PQfmod.argtypes = [PGresult_p, c_int]
 PQfmod.restype = c_int
 
+
 # char *PQfname(const PGresult *res,
 #               int column_number);
 PQfname = libpq.PQfname
 PQfname.argtypes = [PGresult_p, c_int]
 PQfname.restype = c_char_p
+
 
 # int PQfsize(const PGresult *res,
 #             int column_number);
@@ -125,11 +161,18 @@ PQntuples.restype = c_int
 #                  int column_number);
 PQgetvalue = libpq.PQgetvalue
 PQgetvalue.argtypes = [PGresult_p, c_int, c_int]
-PQgetvalue.restype = c_char_p
+PQgetvalue.restype = POINTER(c_char)
 
 # int PQgetisnull(const PGresult *res,
 #                 int row_number,
 #                 int column_number);
 PQgetisnull = libpq.PQgetisnull
 PQgetisnull.argtypes = [PGresult_p, c_int, c_int]
+PQgetisnull.restype = c_int
+
+# int PQgetlength(const PGresult *res,
+#                 int tup_num,
+#                 int field_num);
+PQgetlength = libpq.PQgetlength
+PQgetlength.argtypes = [PGresult_p, c_int, c_int]
 PQgetisnull.restype = c_int
