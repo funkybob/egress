@@ -102,7 +102,7 @@ def parse_bytea(value, vlen, ftype=None, fmod=None):
 
 
 def parse_char(value, vlen, ftype=None, fmod=None):
-    return value[0]
+    return value[:1]
 
 
 def parse_integer(value, vlen, ftype=None, fmod=None):
@@ -171,6 +171,10 @@ def parse_double(value, vlen, ftype=None, fmod=None):
     return struct.unpack('!d', value[:vlen])[0]
 
 
+def parse_namedata(value, vlen, ftype=None, fmod=None):
+    return value[:vlen]
+
+
 # DESCR() strings taken from pg_type.h
 TYPE_MAP = {
     # DESCR("boolean, 'true'/'false'")
@@ -180,7 +184,7 @@ TYPE_MAP = {
     # DESCR("single character");
     18: parse_char,
     # DESCR("63-byte type for storing system identifiers")
-    # 19:
+    19: parse_namedata,
     # DESCR("~18 digit integer, 8-byte storage")
     20: parse_int64,
     # DESCR("-32 thousand to 32 thousand, 2-byte storage");
