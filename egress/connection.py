@@ -50,7 +50,8 @@ class Connection(object):
         a connection without committing the changes first will cause an
         implicit rollback to be performed.
         '''
-        libpq.PQexec(self.conn, 'ROLLBACK')
+        res = libpq.PQexec(self.conn, 'ROLLBACK')
+        status = libpq.PQresultStatus(res)
 
     def cursor(self):
         '''
