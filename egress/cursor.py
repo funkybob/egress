@@ -61,6 +61,9 @@ class Cursor(object):
         self._resultrow = -1
 
     def __iter__(self):
+        return self
+
+    def __next__(self):
         '''
         Yield records from result.
         '''
@@ -129,6 +132,7 @@ class Cursor(object):
         The procedure may also provide a result set as output. This must then
         be made available through the standard .fetch*() methods.
         '''
+        raise NotImplementedError
 
     def close(self):
         '''
@@ -236,7 +240,7 @@ class Cursor(object):
         if not self._result:
             raise InterfaceError('No results to fetch.')
 
-        if self._resultrow == self._rowcount:
+        if self._resultrow >= self._rowcount:
             return None
         self._resultrow += 1
         rownum = self._resultrow
@@ -273,6 +277,7 @@ class Cursor(object):
         .arraysize attribute. If the size parameter is used, then it is best
         for it to retain the same value from one .fetchmany() call to the next.
         '''
+        raise NotImplementedError
 
     def fetchall(self):
         '''
@@ -283,6 +288,7 @@ class Cursor(object):
         An Error (or subclass) exception is raised if the previous call to
         .execute*() did not produce any result set or no call was issued yet.
         '''
+        raise NotImplementedError
 
     def nextset(self):
         '''
@@ -299,6 +305,7 @@ class Cursor(object):
         An Error (or subclass) exception is raised if the previous call to
         .execute*() did not produce any result set or no call was issued yet.
         '''
+        raise NotImplementedError
 
     def _get_arraysize(self):
         '''
@@ -311,9 +318,10 @@ class Cursor(object):
         single row at a time. It may also be used in the implementation of
         .executemany().
         '''
+        raise NotImplementedError
 
     def _set_arraysize(self):
-        pass
+        raise NotImplementedError
 
     arraysize = property(_get_arraysize, _set_arraysize)
 
@@ -334,6 +342,7 @@ class Cursor(object):
         Implementations are free to have this method do nothing and users are
         free to not use it.
         '''
+        raise NotImplementedError
 
     def setoutputsize(self, size, column=None):
         '''
@@ -347,3 +356,4 @@ class Cursor(object):
         Implementations are free to have this method do nothing and users are
         free to not use it.
         '''
+        raise NotImplementedError
