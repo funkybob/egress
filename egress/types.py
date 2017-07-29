@@ -159,10 +159,15 @@ def parse_jsonb(value, vlen, ftype=None, fmod=None):
     return value[:vlen]
 
 
+def parse_float(value, vlen, ftype=None, fmod=None):
+    return struct.unpack('!f', value[:vlen])[0]
+
+
 def parse_double(value, vlen, ftype=None, fmod=None):
-    return struct.unpack('!d', value[:8])[0]
+    return struct.unpack('!d', value[:vlen])[0]
 
 
+# DESCR() strings taken from pg_type.h
 TYPE_MAP = {
     # DESCR("boolean, 'true'/'false'")
     16: parse_bool,
@@ -177,9 +182,11 @@ TYPE_MAP = {
     # DESCR("variable-length string, no limit specified")
     25: parse_string,
     26: parse_integer,
-    # CIDR - "network IP address/netmask, network address"
+    # DESCR("network IP address/netmask, network address")
     650: parse_ipaddr,
-    # double-precision floating point number, 8-byte storage
+    # DESCR("single-precision floating point number, 4-byte storage")
+    701: parse_float,
+    # DESCR("double-precision floating point number, 8-byte storage")
     701: parse_double,
     # DESCR("IP address/netmask, host address, netmask optional")
     869: parse_ipaddr,
