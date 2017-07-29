@@ -234,7 +234,7 @@ def infer_type(ftype, fmod):
     Given a postgres type OID and modifier, infer the related Type class
     '''
     if ftype not in TYPE_MAP:
-        print("Unknown type: %r:%r" % (ftype, fmod))
+        raise KeyError("Unknown type: %r:%r" % (ftype, fmod))
     return partial(
         TYPE_MAP.get(ftype, parse_dummy),
         ftype=ftype,
