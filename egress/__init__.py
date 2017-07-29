@@ -21,6 +21,10 @@ def connect(**kwargs):
         if item[1]
     ])
     conn = libpq.PQconnectdb(conn_str.encode('utf-8'))
+    status = libpq.PQstatus(conn)
+    if status == libpq.CONNECTION_BAD:
+        msg = libpq.PQerrorMessage(conn)
+        raise OperationalError(msg)
     return Connection(conn, **kwargs)
 
 apilevel = '2.0'  # NOQA
