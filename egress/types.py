@@ -1,7 +1,7 @@
 from ctypes import cast, c_char_p
 import datetime
 from functools import partial
-from ipaddress import IPv4Address, IPv6Address
+from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 import json
 import struct
 
@@ -108,6 +108,8 @@ def parse_char(value, vlen, ftype=None, fmod=None):
 def parse_integer(value, vlen, ftype=None, fmod=None):
     if vlen == -1:
         return None
+    if vlen == 0:
+        return 0
     if vlen == 2:
         return struct.unpack('!h', value[:vlen])[0]
     if vlen == 4:
@@ -134,14 +136,19 @@ def parse_string(value, vlen, ftype=None, fmod=None):
 
 
 def parse_dummy(value, vlen, ftype=None, fmod=None):
+    print("Dummy: %r %r" % (value, vlen))
     return value
 
 
 def parse_ipaddr(value, vlen, ftype=None, fmod=None):
     ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
     if nb == 4:
+        if ip_bits:
+            return IPv4Network((value[4:4+nb], ip_bits))
         return IPv4Address(value[4:4+nb])
     elif nb == 16:
+        if ip_bits:
+            return IPv6Network((value[4:4+nb], ip_bits))
         return IPv6Address(value[4:4+nb])
     return value
 
@@ -150,6 +157,10 @@ def parse_jsonb(value, vlen, ftype=None, fmod=None):
     if value[0] == b'\x01':
         return json.loads(value[1:vlen].decode('utf-8'))
     return value[:vlen]
+
+
+def parse_double(value, vlen, ftype=None, fmod=None):
+    return struct.unpack('!d', value[:8])[0]
 
 
 TYPE_MAP = {
@@ -166,8 +177,14 @@ TYPE_MAP = {
     # DESCR("variable-length string, no limit specified")
     25: parse_string,
     26: parse_integer,
+    # CIDR - "network IP address/netmask, network address"
+    650: parse_ipaddr,
+    # double-precision floating point number, 8-byte storage
+    701: parse_double,
     # DESCR("IP address/netmask, host address, netmask optional")
     869: parse_ipaddr,
+    # "varchar(length), non-blank-padded string, variable storage length"
+    1043: parse_string,
     1114: parse_timestamp,
     # DESCR("Binary JSON")
     3802: parse_jsonb,
@@ -178,6 +195,8 @@ def infer_type(ftype, fmod):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
+    if ftype not in TYPE_MAP:
+        print("Unknown type: %r:%r" % (ftype, fmod))
     return partial(
         TYPE_MAP.get(ftype, parse_dummy),
         ftype=ftype,
