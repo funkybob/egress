@@ -2,7 +2,7 @@
 from collections import namedtuple
 from ctypes import c_char_p
 
-from .exceptions import InterfaceError
+from .exceptions import InterfaceError, DatabaseError, ProgrammingError
 from . import libpq
 from . import types
 
@@ -41,6 +41,7 @@ class Cursor(object):
 
         self._result = result
         self._nfields = nfields = libpq.PQnfields(result)
+
         desc = []
         for field in range(nfields):
             ftype = libpq.PQftype(result, field)
@@ -67,7 +68,10 @@ class Cursor(object):
         '''
         Yield records from result.
         '''
-        yield self.fetchone()
+        row = self.fetchone()
+        if row is None:
+            raise StopIteration()
+        return row
 
     def _prepare_param(self, param):
         if isinstance(param, bytes):
@@ -192,8 +196,18 @@ class Cursor(object):
         status = libpq.PQresultStatus(result)
         if status == libpq.PGRES_FATAL_ERROR:
             msg = libpq.PQresultErrorMessage(result)
+            if not msg:
+                code = None
+                msg = libpq.PQerrorMessage(self.conn.conn)
+            else:
+                code = libpq.PQresultErrorField(result, libpq.PG_DIAG_SQLSTATE)
+            msg = msg.decode('utf-8').strip()
+
+            exc_class = DatabaseError
+            if code[:2] == b'42':
+                exc_class = ProgrammingError
             libpq.PQclear(result)
-            raise SyntaxError(msg)
+            raise exc_class(msg)
 
         self._set_result(result)
 
@@ -240,9 +254,9 @@ class Cursor(object):
         if not self._result:
             raise InterfaceError('No results to fetch.')
 
+        self._resultrow += 1
         if self._resultrow >= self._rowcount:
             return None
-        self._resultrow += 1
         rownum = self._resultrow
 
         rec = []
@@ -288,7 +302,13 @@ class Cursor(object):
         An Error (or subclass) exception is raised if the previous call to
         .execute*() did not produce any result set or no call was issued yet.
         '''
-        raise NotImplementedError
+        return [row for row in self]
+        result = []
+        row = self.fetchone()
+        while(row):
+            result.append(row)
+            row = self.fetchone()
+        return result
 
     def nextset(self):
         '''
