@@ -73,6 +73,7 @@ class DBAPITypeObject(object):
         else:
             return -1
 
+
 # This type object is used to describe columns in a database that are
 # string-based (e.g. CHAR).
 STRING = DBAPITypeObject()

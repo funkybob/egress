@@ -1,6 +1,6 @@
 
 from .exceptions import *
-from .connection import *
+from .connection import Connection
 from .types import *
 
 from . import libpq
@@ -23,7 +23,7 @@ def connect(**kwargs):
     conn = libpq.PQconnectdb(conn_str.encode('utf-8'))
     return Connection(conn, **kwargs)
 
-apilevel = '2.0'
+apilevel = '2.0'  # NOQA
 
 threadsafety = 1
 
