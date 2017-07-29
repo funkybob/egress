@@ -46,6 +46,21 @@ PQTRANS_INTRANS = 2     # idle, within transaction block */
 PQTRANS_INERROR = 3     # idle, within failed transaction */
 PQTRANS_UNKNOWN = 4     # cannot determine status */
 
+
+PG_DIAG_SEVERITY = ord('S')
+PG_DIAG_SQLSTATE = ord('C')
+PG_DIAG_MESSAGE_PRIMARY = ord('M')
+PG_DIAG_MESSAGE_DETAIL = ord('D')
+PG_DIAG_MESSAGE_HINT = ord('H')
+PG_DIAG_STATEMENT_POSITION = 'P'
+PG_DIAG_INTERNAL_POSITION = 'p'
+PG_DIAG_INTERNAL_QUERY = ord('q')
+PG_DIAG_CONTEXT = ord('W')
+PG_DIAG_SOURCE_FILE = ord('F')
+PG_DIAG_SOURCE_LINE = ord('L')
+PG_DIAG_SOURCE_FUNCTION = ord('R')
+
+
 TransStatusType = c_int
 
 
@@ -182,3 +197,15 @@ PQgetisnull.restype = c_int
 PQresultErrorMessage = libpq.PQresultErrorMessage
 PQresultErrorMessage.argtyes = [PGresult_p]
 PQresultErrorMessage.restype = c_char_p
+
+
+# char *PQresultErrorField(const PGresult *res, int)
+PQresultErrorField = libpq.PQresultErrorField
+PQresultErrorField.argtypes = [PGresult_p, c_int]
+PQresultErrorField.restype = c_char_p
+
+
+# char *PQerrorMessage(const PGconn *conn);
+PQerrorMessage = libpq.PQerrorMessage
+PQerrorMessage.argtypes = [PGconn_p]
+PQerrorMessage.restype = c_char_p
