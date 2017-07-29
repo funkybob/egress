@@ -2,7 +2,7 @@
 from collections import namedtuple
 from ctypes import c_char_p
 
-from .exceptions import *
+from .exceptions import InterfaceError
 from . import libpq
 from . import types
 
