@@ -208,7 +208,7 @@ TYPE_MAP = {
     # DESCR("IP address/netmask, host address, netmask optional")
     869: parse_ipaddr,
     # DESCR("char(length), blank-padded string, fixed storage length")
-    1042: parse_string.
+    1042: parse_string,
     # DESCR("varchar(length), non-blank-padded string, variable storage length")
     1043: parse_string,
     # DESCR("date")
