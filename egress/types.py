@@ -119,6 +119,10 @@ def parse_integer(value, vlen, ftype=None, fmod=None):
     raise ValueError('Unexpected length for INT type: %r' % vlen)
 
 
+def parse_int64(value, vlen, ftype=None, fmod=None):
+    return struct.unpack('!Q', value[:vlen])[0]
+
+
 def parse_timestamp(value, vlen, ftype=None, fmod=None):
     assert vlen == 8, 'Invalid timestamp len: %d (%r)' % (vlen, value[:vlen])
     if INTEGER_DATETIMES:
@@ -177,22 +181,45 @@ TYPE_MAP = {
     18: parse_char,
     # DESCR("63-byte type for storing system identifiers")
     # 19:
+    # DESCR("~18 digit integer, 8-byte storage")
+    20: parse_int64,
+    # DESCR("-32 thousand to 32 thousand, 2-byte storage");
+    21: parse_integer,
+    # DESCR("array of int2, used in system tables");
+    # 22:
     # DESCR("-2 billion to 2 billion integer, 4-byte storage")
     23: parse_integer,
+    # DESCR("registered procedure");
+    # 24:
     # DESCR("variable-length string, no limit specified")
     25: parse_string,
+    # DESCR("object identifier(oid), maximum 4 billion")
     26: parse_integer,
     # DESCR("network IP address/netmask, network address")
+    # DESCR("(block, offset), physical location of tuple")
+    # 27:
+    # DESCR("XML content")
+    # 142:
     650: parse_ipaddr,
     # DESCR("single-precision floating point number, 4-byte storage")
-    701: parse_float,
+    700: parse_float,
     # DESCR("double-precision floating point number, 8-byte storage")
     701: parse_double,
     # DESCR("IP address/netmask, host address, netmask optional")
     869: parse_ipaddr,
-    # "varchar(length), non-blank-padded string, variable storage length"
+    # DESCR("char(length), blank-padded string, fixed storage length")
+    1042: parse_string.
+    # DESCR("varchar(length), non-blank-padded string, variable storage length")
     1043: parse_string,
+    # DESCR("date")
+    # 1082:
+    # DESCR("time of day")
+    # 1083:
+    # DESCR("date and time")
     1114: parse_timestamp,
+    # DESCR("Binary JSON")
+    # DESCR("numeric(precision, decimal), arbitrary precision number")
+    # 1700: parse_numeric,
     # DESCR("Binary JSON")
     3802: parse_jsonb,
 }
