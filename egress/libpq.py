@@ -1,8 +1,8 @@
 
 from ctypes import *
+from ctypes.util import find_library
 
-
-libpq = cdll.LoadLibrary('libpq.dylib')
+libpq = cdll.LoadLibrary(find_library('pq'))
 
 Oid = c_uint
 
@@ -176,3 +176,9 @@ PQgetisnull.restype = c_int
 PQgetlength = libpq.PQgetlength
 PQgetlength.argtypes = [PGresult_p, c_int, c_int]
 PQgetisnull.restype = c_int
+
+
+# char *PQresultErrorMessage(const PGresult *res);
+PQresultErrorMessage = libpq.PQresultErrorMessage
+PQresultErrorMessage.argtyes = [PGresult_p]
+PQresultErrorMessage.restype = c_char_p
