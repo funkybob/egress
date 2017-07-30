@@ -1,4 +1,4 @@
-
+import re
 from collections import namedtuple
 from ctypes import c_char_p
 
@@ -21,6 +21,7 @@ class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
         self._result = None
+        self._in_txn = False
         self._cleanup()
 
     def _cleanup(self):
@@ -177,6 +178,12 @@ class Cursor(object):
 
         Return values are not defined.
         '''
+        if parameters:
+            ctr = 1
+            while '%s' in operation:
+                operation = operation.replace('%s', '$%d' % ctr, 1)
+                ctr += 1
+
         if isinstance(operation, str):
             operation = operation.encode('utf-8')
 
@@ -270,7 +277,7 @@ class Cursor(object):
             rec.append(val)
         return rec
 
-    def fetchmany(size=None):
+    def fetchmany(self, size=None):
         # size = cursor.arraysize
         '''
         Fetch the next set of rows of a query result, returning a sequence of
@@ -291,7 +298,15 @@ class Cursor(object):
         .arraysize attribute. If the size parameter is used, then it is best
         for it to retain the same value from one .fetchmany() call to the next.
         '''
-        raise NotImplementedError
+        if size is None:
+            size = 1
+        result = []
+        for _ in range(size):
+            row = self.fetchone()
+            if not row:
+                break
+            result.append(row)
+        return result
 
     def fetchall(self):
         '''
