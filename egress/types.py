@@ -125,15 +125,14 @@ def parse_int64(value, vlen, ftype=None, fmod=None):
 
 
 def parse_timestamp(value, vlen, ftype=None, fmod=None):
-    assert vlen == 8, 'Invalid timestamp len: %d (%r)' % (vlen, value[:vlen])
-    if INTEGER_DATETIMES:
-        # data is 64-bit integer representing milliseconds since 2000-01-01
-        val = struct.unpack('!q', value[:vlen])[0]
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
-    else:
-        # data is double-precision float representing seconds since 2000-01-01
-        val = struct.unpack('!d', value[:vlen])[0]
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(seconds=val)
+    # data is double-precision float representing seconds since 2000-01-01
+    val = struct.unpack('!d', value[:vlen])[0]
+    return datetime.datetime(2000, 1, 1, tz) + datetime.timedelta(seconds=val)
+
+
+def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
+    val = struct.unpack('!d', value[:vlen])[0]
+    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=val)
 
 
 def parse_string(value, vlen, ftype=None, fmod=None):
@@ -142,7 +141,7 @@ def parse_string(value, vlen, ftype=None, fmod=None):
 
 def parse_dummy(value, vlen, ftype=None, fmod=None):
     print("Dummy: %r %r" % (value, vlen))
-    return value
+    return value[:vlen]
 
 
 def parse_ipaddr(value, vlen, ftype=None, fmod=None):
@@ -225,6 +224,8 @@ TYPE_MAP = {
     # 1083:
     # DESCR("date and time")
     1114: parse_timestamp,
+    # DESCR("date and time with time zone")
+    1184: parse_timestamp_tz,
     # DESCR("Binary JSON")
     # DESCR("numeric(precision, decimal), arbitrary precision number")
     # 1700: parse_numeric,
