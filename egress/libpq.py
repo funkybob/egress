@@ -215,3 +215,8 @@ PQerrorMessage.restype = c_char_p
 PQescapeLiteral = libpq.PQescapeLiteral
 PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_size_t]
 PQescapeLiteral.restype = c_char_p
+
+# PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
+PQtransactionStatus = libpq.PQtransactionStatus
+PQtransactionStatus.argtypes = [PGconn_p]
+PQtransactionStatus.restype = c_uint
