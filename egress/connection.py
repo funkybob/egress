@@ -12,6 +12,11 @@ class Connection(object):
         self._status = libpq.PQstatus(PGconn)
         self._autocommit = True
 
+    @property
+    def _in_txn(self):
+        txn_state = libpq.PQtransactionStatus(self.conn)
+        return txn_state not in (libpq.PQTRANS_IDLE, libpq.PQTRANS_UNKNOWN, libpq.PQTRANS_INERROR)
+
     def close(self):
         '''
         Close the connection now (rather than whenever .__del__() is called).
