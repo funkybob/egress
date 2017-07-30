@@ -4,6 +4,7 @@ from functools import partial
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 import json
 import struct
+import uuid
 
 '''
 The module exports the following constructors and singletons:
@@ -175,6 +176,9 @@ def parse_namedata(value, vlen, ftype=None, fmod=None):
     return value[:vlen].decode('utf-8')
 
 
+def parse_uuid(value, vlen, ftype=None, fmod=None):
+    return uuid.uuid(bytes=value[:vlen])
+
 # DESCR() strings taken from pg_type.h
 TYPE_MAP = {
     # DESCR("boolean, 'true'/'false'")
@@ -225,6 +229,8 @@ TYPE_MAP = {
     # DESCR("numeric(precision, decimal), arbitrary precision number")
     # 1700: parse_numeric,
     # DESCR("Binary JSON")
+    # DESCR("UUID datatype")
+    2950: parse_uuid,
     3802: parse_jsonb,
 }
 
