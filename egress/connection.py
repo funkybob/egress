@@ -10,7 +10,7 @@ class Connection(object):
         self.kwargs = kwargs
         self.cursors = []
         self._status = libpq.PQstatus(PGconn)
-        self._autocommit = False
+        self._autocommit = True
 
     def close(self):
         '''
