@@ -102,7 +102,7 @@ def parse_bytea(value, vlen, ftype=None, fmod=None):
 
 
 def parse_char(value, vlen, ftype=None, fmod=None):
-    return value[:1]
+    return value[:1].decode('utf-8')
 
 
 def parse_integer(value, vlen, ftype=None, fmod=None):
@@ -136,7 +136,7 @@ def parse_timestamp(value, vlen, ftype=None, fmod=None):
 
 
 def parse_string(value, vlen, ftype=None, fmod=None):
-    return cast(value, c_char_p).value
+    return cast(value, c_char_p).value.decode('utf-8')
 
 
 def parse_dummy(value, vlen, ftype=None, fmod=None):
@@ -160,7 +160,7 @@ def parse_ipaddr(value, vlen, ftype=None, fmod=None):
 def parse_jsonb(value, vlen, ftype=None, fmod=None):
     if value[0] == b'\x01':
         return json.loads(value[1:vlen].decode('utf-8'))
-    return value[:vlen]
+    return value[:vlen].decode('utf-8')
 
 
 def parse_float(value, vlen, ftype=None, fmod=None):
@@ -172,7 +172,7 @@ def parse_double(value, vlen, ftype=None, fmod=None):
 
 
 def parse_namedata(value, vlen, ftype=None, fmod=None):
-    return value[:vlen]
+    return value[:vlen].decode('utf-8')
 
 
 # DESCR() strings taken from pg_type.h
