@@ -1,6 +1,7 @@
 
 from . import libpq
 from .cursor import Cursor
+from .exceptions import DatabaseError
 
 
 class Connection(object):
@@ -9,6 +10,7 @@ class Connection(object):
         self.kwargs = kwargs
         self.cursors = []
         self._status = libpq.PQstatus(PGconn)
+        self._autocommit = False
 
     def close(self):
         '''
@@ -37,8 +39,12 @@ class Connection(object):
         Database modules that do not support transactions should implement this
         method with void functionality.
         '''
-        res = libpq.PQexec(self.conn, 'COMMIT')
-        status = libpq.PQresultStatus(res)
+        cur = self.cursor()
+        try:
+            res = libpq.PQexec(self.conn, 'COMMIT')
+            self._check_cmd_result(res)
+        finally:
+            cur.close()
 
     def rollback(self):
         '''
@@ -50,8 +56,12 @@ class Connection(object):
         a connection without committing the changes first will cause an
         implicit rollback to be performed.
         '''
-        res = libpq.PQexec(self.conn, 'ROLLBACK')
-        status = libpq.PQresultStatus(res)
+        cur = self.cursor()
+        try:
+            res = libpq.PQexec(cur, 'ROLLBACK')
+            self._check_cmd_result(res)
+        finally:
+            cur.close()
 
     def cursor(self):
         '''
@@ -73,3 +83,18 @@ class Connection(object):
             self.cursors.remove(cursor)
         except ValueError:
             pass
+
+    def _check_status(self):
+        status = libpq.PQstatus(self.conn)
+        if status == libpq.CONNECTION_OK:
+            return
+        msg = libpq.PQerrorMessage(self.conn)
+        raise DatabaseError(msg)
+        # Raise appropriate error
+
+    def _check_cmd_result(self, result):
+        status = libpq.PQresultStatus(result)
+        if status in (libpq.PQRES_COMMAND_OK, libpq.PQRES_TUPLES_OK):
+            return self._check_status()
+        msg = libpq.PQresultErrorMessage(result)
+        raise DatabaseError(msg)
