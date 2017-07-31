@@ -220,3 +220,8 @@ PQescapeLiteral.restype = c_char_p
 PQtransactionStatus = libpq.PQtransactionStatus
 PQtransactionStatus.argtypes = [PGconn_p]
 PQtransactionStatus.restype = c_uint
+
+# int PQbackendPID(const PGconn *conn);
+PQbackendPID = libpq.PQbackendPID
+PQbackendPID.argtypes = [PGconn_p]
+PQbackendPID.restype = c_int
