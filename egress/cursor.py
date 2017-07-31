@@ -1,4 +1,4 @@
-import re
+
 from collections import namedtuple
 from ctypes import c_char_p
 
@@ -21,7 +21,6 @@ class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
         self._result = None
-        self._in_txn = False
         self._cleanup()
 
     def _cleanup(self):
@@ -196,6 +195,10 @@ class Cursor(object):
         ]
         param_array = c_char_p * len(parameters)
         params = param_array(*parameters)
+
+        if not (self.conn._autocommit or self.conn._in_txn):
+            result = libpq.PQexec(self.conn.conn, b'BEGIN')
+            self.conn._check_cmd_result(result)
 
         result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, params, None, None, 1)
 
