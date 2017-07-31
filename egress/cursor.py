@@ -23,13 +23,16 @@ class Cursor(object):
         self._result = None
         self._cleanup()
 
+    def _free_result(self):
+        if self._result:
+            libpq.PQclear(self._result)
+            self._result = None
+
     def _cleanup(self):
         '''
         Internal function to clean up state when beginning a new operation.
         '''
-        if self._result:
-            libpq.PQclear(self._result)
-            self._result = None
+        self._free_result()
         self._rowcount = None
         self._description = None
 
@@ -203,21 +206,7 @@ class Cursor(object):
         result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, params, None, None, 1)
 
         # Did it succeed?
-        status = libpq.PQresultStatus(result)
-        if status == libpq.PGRES_FATAL_ERROR:
-            msg = libpq.PQresultErrorMessage(result)
-            if not msg:
-                code = None
-                msg = libpq.PQerrorMessage(self.conn.conn)
-            else:
-                code = libpq.PQresultErrorField(result, libpq.PG_DIAG_SQLSTATE)
-            msg = msg.decode('utf-8').strip()
-
-            exc_class = DatabaseError
-            if code[:2] == b'42':
-                exc_class = ProgrammingError
-            libpq.PQclear(result)
-            raise exc_class(msg)
+        self.conn._check_cmd_result(result)
 
         self._set_result(result)
 
@@ -262,10 +251,11 @@ class Cursor(object):
         .execute*() did not produce any result set or no call was issued yet.
         '''
         if not self._result:
-            raise InterfaceError('No results to fetch.')
+            return None
 
         self._resultrow += 1
         if self._resultrow >= self._rowcount:
+            self._free_result()
             return None
         rownum = self._resultrow
 
@@ -306,7 +296,7 @@ class Cursor(object):
         result = []
         for _ in range(size):
             row = self.fetchone()
-            if not row:
+            if row is None:
                 break
             result.append(row)
         return result
