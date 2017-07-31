@@ -61,8 +61,9 @@ class Connection(object):
         a connection without committing the changes first will cause an
         implicit rollback to be performed.
         '''
-        res = libpq.PQexec(self.conn, b'ROLLBACK')
-        self._check_cmd_result(res)
+        if self._in_txn:
+            res = libpq.PQexec(self.conn, b'ROLLBACK')
+            self._check_cmd_result(res)
 
     def cursor(self):
         '''
