@@ -10,7 +10,7 @@ class Connection(object):
         self.kwargs = kwargs
         self.cursors = []
         self._status = libpq.PQstatus(PGconn)
-        self._autocommit = True
+        self._autocommit = False
 
     @property
     def _in_txn(self):
@@ -30,6 +30,9 @@ class Connection(object):
         for cursor in self.cursors:
             cursor.close()
 
+        if self._in_txn:
+            self.rollback()
+
         if self.conn is not None:
             libpq.PQfinish(self.conn)
             self.conn = None
@@ -44,8 +47,9 @@ class Connection(object):
         Database modules that do not support transactions should implement this
         method with void functionality.
         '''
-        res = libpq.PQexec(self.conn, b'COMMIT')
-        self._check_cmd_result(res)
+        if self._in_txn:
+            res = libpq.PQexec(self.conn, b'COMMIT')
+            self._check_cmd_result(res)
 
     def rollback(self):
         '''
