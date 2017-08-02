@@ -73,6 +73,7 @@ PGconn_p = POINTER(PGconn)
 class PGresult(Structure):
     _fields_ = []
 
+
 PGresult_p = POINTER(PGresult)
 
 # PGconn *PQconnectdb(const char *conninfo);

@@ -1,8 +1,7 @@
 
 from collections import namedtuple
-from ctypes import c_char_p
+from ctypes import c_char_p, c_int, c_uint
 
-from .exceptions import InterfaceError, DatabaseError, ProgrammingError
 from . import libpq
 from . import types
 
@@ -20,6 +19,8 @@ Description = namedtuple('Description', (
 class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
+        self.query = None
+        self.arraysize = 1
         self._result = None
         self._cleanup()
 
@@ -53,7 +54,7 @@ class Cursor(object):
             fsize = libpq.PQfsize(result, field)
             desc.append(Description(
                 fname,
-                types.infer_type(ftype, fmod),
+                types.infer_parser(ftype, fmod),
                 None,
                 fsize,
                 None,
@@ -75,13 +76,6 @@ class Cursor(object):
         if row is None:
             raise StopIteration()
         return row
-
-    def _prepare_param(self, param):
-        if isinstance(param, bytes):
-            return param
-        if isinstance(param, str):
-            return param.encode('utf-8')
-        return str(param).encode('utf-8')
 
     @property
     def description(self):
@@ -189,21 +183,41 @@ class Cursor(object):
         if isinstance(operation, str):
             operation = operation.encode('utf-8')
 
-        if parameters is None:
+        if parameters:
+            pcount = len(parameters)
+
+            paramTypes = (c_uint * pcount)()
+            paramValues = (c_char_p * pcount)()
+            paramLengths = (c_int * pcount)()
+            paramFormats = (c_int * pcount)()
+            for idx, param in enumerate(parameters):
+                t, v, l, f = types.format_type(param)
+                paramTypes[idx] = t
+                paramValues[idx] = v
+                paramLengths[idx] = l
+                paramFormats[idx] = f
+
+        else:
             parameters = []
+            paramTypes = paramValues = paramLengths = paramFormats = None
 
-        parameters = [
-            self._prepare_param(param)
-            for param in parameters
-        ]
-        param_array = c_char_p * len(parameters)
-        params = param_array(*parameters)
-
+        self.query = operation
+        # print('{%d}[A:%r T:%r] %r : %r' % (self.conn.pid, self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
             result = libpq.PQexec(self.conn.conn, b'BEGIN')
             self.conn._check_cmd_result(result)
 
-        result = libpq.PQexecParams(self.conn.conn, operation, len(parameters), None, params, None, None, 1)
+        result = libpq.PQexecParams(
+            self.conn.conn,
+            operation,
+            len(parameters),
+            # cast(paramTypes, POINTER(libpq.Oid)),
+            paramTypes,
+            paramValues,
+            paramLengths,
+            paramFormats,
+            1
+        )
 
         # Did it succeed?
         self.conn._check_cmd_result(result)
@@ -271,7 +285,6 @@ class Cursor(object):
         return rec
 
     def fetchmany(self, size=None):
-        # size = cursor.arraysize
         '''
         Fetch the next set of rows of a query result, returning a sequence of
         sequences (e.g. a list of tuples). An empty sequence is returned when
@@ -292,7 +305,7 @@ class Cursor(object):
         for it to retain the same value from one .fetchmany() call to the next.
         '''
         if size is None:
-            size = 1
+            size = self.arraysize
         result = []
         for _ in range(size):
             row = self.fetchone()
@@ -351,7 +364,7 @@ class Cursor(object):
     def _set_arraysize(self):
         raise NotImplementedError
 
-    arraysize = property(_get_arraysize, _set_arraysize)
+    # arraysize = property(_get_arraysize, _set_arraysize)
 
     def setinputsizes(self, sizes):
         '''

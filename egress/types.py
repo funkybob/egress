@@ -1,10 +1,13 @@
-from ctypes import cast, c_char_p
+from ctypes import cast, c_char_p, c_int
+
 import datetime
-from functools import partial
-from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 import json
 import struct
 import uuid
+
+from decimal import Decimal
+from functools import partial
+from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 
 '''
 The module exports the following constructors and singletons:
@@ -93,19 +96,57 @@ DATETIME = DBAPITypeObject()
 ROWID = DBAPITypeObject()
 
 
-# Type conversion functions:
+PARSER_MAP = {}
+FORMAT_MAP = {}
+
+
+def register_format(typ):
+    def _inner(func):
+        FORMAT_MAP[typ] = func
+        return func
+    return _inner
+
+
+def register_parser(oid):
+    def _inner(func):
+        PARSER_MAP[oid] = func
+        return func
+    return _inner
+
+
+@register_format(type(None))
+def format_none(value):
+    return (0, None, 0,)
+
+
+@register_parser(16)
 def parse_bool(value, vlen, ftype=None, fmod=None):
-    return value[0] == '\x01'
+    return struct.unpack('?', value)[0]
 
 
+@register_format(bool)
+def format_bool(value):
+    return (16, struct.pack('?', value), 1)
+
+
+@register_parser(17)
 def parse_bytea(value, vlen, ftype=None, fmod=None):
     return value[:vlen]
 
 
+@register_format(bytes)
+def format_bytea(value):
+    return (17, c_char_p(value), len(value))
+
+
+@register_parser(18)
 def parse_char(value, vlen, ftype=None, fmod=None):
     return value[:1].decode('utf-8')
 
 
+@register_parser(21)
+@register_parser(23)
+@register_parser(26)
 def parse_integer(value, vlen, ftype=None, fmod=None):
     if vlen == -1:
         return None
@@ -120,30 +161,60 @@ def parse_integer(value, vlen, ftype=None, fmod=None):
     raise ValueError('Unexpected length for INT type: %r' % vlen)
 
 
-def parse_int64(value, vlen, ftype=None, fmod=None):
-    return struct.unpack('!Q', value[:vlen])[0]
+@register_parser(20)
+def parse_uint(value, vlen, ftype=None, fmod=None):
+    if vlen == 0:
+        return 0
+    if vlen == 2:
+        return struct.unpack('!H', value[:vlen])[0]
+    if vlen == 4:
+        return struct.unpack('!I', value[:vlen])[0]
+    if vlen == 8:
+        return struct.unpack("!Q", value[:vlen])[0]
+    raise ValueError('Unexpected length for INT type: %r' % vlen)
 
 
+@register_parser(1082)
+def parse_date(value, vlen, ftype=None, fmod=None):
+    val = struct.unpack('!i', value[:vlen])[0]
+    return (datetime.datetime(2000, 1, 1) + datetime.timedelta(days=val)).date()
+
+
+@register_parser(1114)
 def parse_timestamp(value, vlen, ftype=None, fmod=None):
-    # data is double-precision float representing seconds since 2000-01-01
     val = struct.unpack('!d', value[:vlen])[0]
-    return datetime.datetime(2000, 1, 1, tz) + datetime.timedelta(seconds=val)
+    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
+@register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!d', value[:vlen])[0]
-    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(seconds=val)
+    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
+@register_format(datetime)
+def format_timestamp(value):
+    value = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+    value = int(value.total_seconds() * 1000000)
+    return (1184, struct.pack('!d', value), 8)
+
+
+@register_parser(25)
+@register_parser(1042)
+@register_parser(1043)
 def parse_string(value, vlen, ftype=None, fmod=None):
     return cast(value, c_char_p).value.decode('utf-8')
 
 
-def parse_dummy(value, vlen, ftype=None, fmod=None):
-    print("Dummy: %r %r" % (value, vlen))
-    return value[:vlen]
+@register_format(str)
+def format_string(value):
+    value = value.encode('utf-8')
+    length = len(value)
+    return (1042, struct.pack('%ds' % length, value), length,)
 
 
+@register_parser(650)
+@register_parser(869)
 def parse_ipaddr(value, vlen, ftype=None, fmod=None):
     ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
     if nb == 4:
@@ -157,93 +228,70 @@ def parse_ipaddr(value, vlen, ftype=None, fmod=None):
     return value
 
 
+@register_parser(3802)
 def parse_jsonb(value, vlen, ftype=None, fmod=None):
     if value[0] == b'\x01':
         return json.loads(value[1:vlen].decode('utf-8'))
     return value[:vlen].decode('utf-8')
 
 
+@register_parser(700)
 def parse_float(value, vlen, ftype=None, fmod=None):
     return struct.unpack('!f', value[:vlen])[0]
 
 
+@register_parser(701)
 def parse_double(value, vlen, ftype=None, fmod=None):
     return struct.unpack('!d', value[:vlen])[0]
 
 
+@register_parser(float)
+def format_double(value):
+    return (701, struct.pack('!d', value), struct.calcsize('!d'))
+
+
+@register_parser(19)
 def parse_namedata(value, vlen, ftype=None, fmod=None):
     return value[:vlen].decode('utf-8')
 
 
+@register_parser(2950)
 def parse_uuid(value, vlen, ftype=None, fmod=None):
     return uuid.uuid(bytes=value[:vlen])
 
-# DESCR() strings taken from pg_type.h
-TYPE_MAP = {
-    # DESCR("boolean, 'true'/'false'")
-    16: parse_bool,
-    # DESCR("variable-length string, binary values escaped")
-    17: parse_bytea,
-    # DESCR("single character");
-    18: parse_char,
-    # DESCR("63-byte type for storing system identifiers")
-    19: parse_namedata,
-    # DESCR("~18 digit integer, 8-byte storage")
-    20: parse_int64,
-    # DESCR("-32 thousand to 32 thousand, 2-byte storage");
-    21: parse_integer,
-    # DESCR("array of int2, used in system tables");
-    # 22:
-    # DESCR("-2 billion to 2 billion integer, 4-byte storage")
-    23: parse_integer,
-    # DESCR("registered procedure");
-    # 24:
-    # DESCR("variable-length string, no limit specified")
-    25: parse_string,
-    # DESCR("object identifier(oid), maximum 4 billion")
-    26: parse_integer,
-    # DESCR("network IP address/netmask, network address")
-    # DESCR("(block, offset), physical location of tuple")
-    # 27:
-    # DESCR("XML content")
-    # 142:
-    650: parse_ipaddr,
-    # DESCR("single-precision floating point number, 4-byte storage")
-    700: parse_float,
-    # DESCR("double-precision floating point number, 8-byte storage")
-    701: parse_double,
-    # DESCR("IP address/netmask, host address, netmask optional")
-    869: parse_ipaddr,
-    # DESCR("char(length), blank-padded string, fixed storage length")
-    1042: parse_string,
-    # DESCR("varchar(length), non-blank-padded string, variable storage length")
-    1043: parse_string,
-    # DESCR("date")
-    # 1082:
-    # DESCR("time of day")
-    # 1083:
-    # DESCR("date and time")
-    1114: parse_timestamp,
-    # DESCR("date and time with time zone")
-    1184: parse_timestamp_tz,
-    # DESCR("Binary JSON")
-    # DESCR("numeric(precision, decimal), arbitrary precision number")
-    # 1700: parse_numeric,
-    # DESCR("Binary JSON")
-    # DESCR("UUID datatype")
-    2950: parse_uuid,
-    3802: parse_jsonb,
-}
+
+@register_parser(1700)
+def parse_numeric(value, vlen, ftype=None, fmod=None):
+    hsize = struct.calcsize('!hhhh')
+    ndigits, weight, sign, dscale = struct.unpack('!hhhh', value[:hsize])
+    desc = '!%dh' % ndigits
+    digits = struct.unpack(desv, value[hsize:hsize+struct.calcsize(desc)])
+    return Decimal('0')
 
 
-def infer_type(ftype, fmod):
+# @register_format(Decimal)
+def format_decimal(value):
+    return (1700, value, 1)
+
+
+def infer_parser(ftype, fmod):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    if ftype not in TYPE_MAP:
+    if ftype not in PARSER_MAP:
         raise KeyError("Unknown type: %r:%r" % (ftype, fmod))
     return partial(
-        TYPE_MAP.get(ftype, parse_dummy),
+        PARSER_MAP[ftype],
         ftype=ftype,
         fmod=fmod,
     )
+
+
+def format_type(value):
+    if isinstance(value, Decimal):
+        value = float(value)
+    try:
+        return FORMAT_MAP[type(value)](value) + (1,)
+    except KeyError:
+        value = str(value).encode('utf-8')
+        return (0, value, 0, 0)

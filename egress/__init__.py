@@ -24,6 +24,7 @@ def connect(**kwargs):
     status = libpq.PQstatus(conn)
     if status == libpq.CONNECTION_BAD:
         msg = libpq.PQerrorMessage(conn)
+        libpq.PQfinish(conn)
         raise OperationalError(msg)
     return Connection(conn, **kwargs)
 

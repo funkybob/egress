@@ -75,6 +75,7 @@ EXC_MAP = {
     b'X': exceptions.InternalError,
 }
 
+
 class Connection(object):
     def __init__(self, PGconn, **kwargs):
         self.conn = PGconn
@@ -99,8 +100,8 @@ class Connection(object):
         the connection. Note that closing a connection without committing the
         changes first will cause an implicit rollback to be performed.
         '''
-        for cursor in self.cursors:
-            cursor.close()
+        while self.cursors:
+            self.cursors[0].close()
 
         if self._in_txn:
             self.rollback()
@@ -174,8 +175,10 @@ class Connection(object):
         msg = msg.decode('utf-8').strip()
 
         code = libpq.PQresultErrorField(result, libpq.PG_DIAG_SQLSTATE)
-
-        exc_class = EXC_MAP.get(code[:2], exceptions.DatabaseError)
+        if code:
+            exc_class = EXC_MAP.get(code[:2], exceptions.DatabaseError)
+        else:
+            exc_class = exceptions.DatabaseError
 
         libpq.PQclear(result)
         raise exc_class(msg)
