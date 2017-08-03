@@ -121,7 +121,7 @@ def format_none(value):
 
 @register_parser(16)
 def parse_bool(value, vlen, ftype=None, fmod=None):
-    return struct.unpack('?', value)[0]
+    return struct.unpack('?', value[:1])[0]
 
 
 @register_format(bool)
