@@ -46,6 +46,16 @@ class Cursor(object):
         self._result = result
         self._nfields = nfields = libpq.PQnfields(result)
 
+        status = libpq.PQresultStatus(result)
+        if status == libpq.PGRES_COMMAND_OK:
+            count = libpq.PQntuples(result)
+            if count:
+                self._rowcount = int(count)
+            else:
+                self._rowcount = -1
+        elif status == libpq.PGRES_TUPLES_OK:
+            self._rowcount = libpq.PQntuples(result)
+
         desc = []
         for field in range(nfields):
             ftype = libpq.PQftype(result, field)
@@ -62,7 +72,6 @@ class Cursor(object):
                 None,
             ))
         self._description = desc
-        self._rowcount = libpq.PQntuples(result)
         self._resultrow = -1
 
     def __iter__(self):
@@ -202,9 +211,9 @@ class Cursor(object):
             paramTypes = paramValues = paramLengths = paramFormats = None
 
         self.query = operation
-        # print('{%d}[A:%r T:%r] %r : %r' % (self.conn.pid, self.conn._autocommit, self.conn._in_txn, operation, parameters))
+        # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
-            result = libpq.PQexec(self.conn.conn, b'BEGIN')
+            result = libpq.PQexec(self.conn.conn, b'START TRANSACTION ISOLATION LEVEL SERIALIZABLE')
             self.conn._check_cmd_result(result)
 
         result = libpq.PQexecParams(

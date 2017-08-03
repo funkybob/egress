@@ -205,6 +205,10 @@ PQresultErrorField = libpq.PQresultErrorField
 PQresultErrorField.argtypes = [PGresult_p, c_int]
 PQresultErrorField.restype = c_char_p
 
+# char *PQcmdTuples(PGresult *res);
+PQcmdTuples = libpq.PQcmdTuples
+PQcmdTuples.argtypes = [PGresult_p]
+PQcmdTuples.restype = c_char_p
 
 # char *PQerrorMessage(const PGconn *conn);
 PQerrorMessage = libpq.PQerrorMessage
