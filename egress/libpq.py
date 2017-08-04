@@ -215,7 +215,6 @@ PQerrorMessage = libpq.PQerrorMessage
 PQerrorMessage.argtypes = [PGconn_p]
 PQerrorMessage.restype = c_char_p
 
-
 # char *PQescapeLiteral(PGconn *conn, const char *str, size_t length);
 PQescapeLiteral = libpq.PQescapeLiteral
 PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_size_t]
@@ -230,3 +229,8 @@ PQtransactionStatus.restype = c_uint
 PQbackendPID = libpq.PQbackendPID
 PQbackendPID.argtypes = [PGconn_p]
 PQbackendPID.restype = c_int
+
+# char *PQcmdStatus(PGresult *res);
+PQcmdStatus = libpq.PQcmdStatus
+PQcmdStatus.argtypes = [PGresult_p]
+PQcmdStatus.restype = c_char_p
