@@ -192,7 +192,7 @@ def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
-@register_format(datetime)
+@register_format(datetime.datetime)
 def format_timestamp(value):
     value = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
     value = int(value.total_seconds() * 1000000)
@@ -245,9 +245,19 @@ def parse_double(value, vlen, ftype=None, fmod=None):
     return struct.unpack('!d', value[:vlen])[0]
 
 
-@register_parser(float)
+@register_format(float)
 def format_double(value):
     return (701, struct.pack('!d', value), struct.calcsize('!d'))
+
+
+@register_parser(702)
+def parse_time(value, vlen, ftype=None, fmod=None):
+    return datetime.time.fromtimestamp(struct.unpack('!i', value[:vlen])[0])
+
+
+@register_format(datetime.time)
+def format_time(value):
+    return struct.pack('!d', int(value.strftime('%s')))
 
 
 @register_parser(19)
