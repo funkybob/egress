@@ -48,7 +48,7 @@ class Cursor(object):
 
         status = libpq.PQresultStatus(result)
         if status == libpq.PGRES_COMMAND_OK:
-            count = libpq.PQntuples(result)
+            count = libpq.PQcmdTuples(result)
             if count:
                 self._rowcount = int(count)
             else:
@@ -123,7 +123,7 @@ class Cursor(object):
         DML statements like UPDATE or INSERT).
 
         The attribute is -1 in case no .execute*() has been performed on the
-        cursor or the rowcount of the last operation is cannot be determined by
+        cursor or the rowcount of the last operation cannot be determined by
         the interface.
         '''
         return self._rowcount
@@ -211,16 +211,14 @@ class Cursor(object):
             paramTypes = paramValues = paramLengths = paramFormats = None
 
         self.query = operation
-        # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
-            result = libpq.PQexec(self.conn.conn, b'START TRANSACTION ISOLATION LEVEL SERIALIZABLE')
+            result = libpq.PQexec(self.conn.conn, b'BEGIN')
             self.conn._check_cmd_result(result)
 
         result = libpq.PQexecParams(
             self.conn.conn,
             operation,
             len(parameters),
-            # cast(paramTypes, POINTER(libpq.Oid)),
             paramTypes,
             paramValues,
             paramLengths,
