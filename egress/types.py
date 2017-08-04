@@ -265,7 +265,7 @@ def parse_numeric(value, vlen, ftype=None, fmod=None):
     hsize = struct.calcsize('!hhhh')
     ndigits, weight, sign, dscale = struct.unpack('!hhhh', value[:hsize])
     desc = '!%dh' % ndigits
-    digits = struct.unpack(desv, value[hsize:hsize+struct.calcsize(desc)])
+    digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
     return Decimal('0')
 
 
