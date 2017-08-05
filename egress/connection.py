@@ -106,7 +106,7 @@ class Connection(object):
             self.rollback()
 
         if self.conn is not None:
-            self.conn.close()
+            self.conn.finish()
             self.conn = None
 
     def commit(self):
