@@ -101,6 +101,17 @@ PQexec = libpq.PQexec
 PQexec.argtypes = [PGconn_p, c_char_p]
 PQexec.restype = PGresult_p
 
+
+# PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
+PQtransactionStatus = libpq.PQtransactionStatus
+PQtransactionStatus.argtypes = [PGconn_p]
+PQtransactionStatus.restype = c_uint
+
+# int PQbackendPID(const PGconn *conn);
+PQbackendPID = libpq.PQbackendPID
+PQbackendPID.argtypes = [PGconn_p]
+PQbackendPID.restype = c_int
+
 # PGresult *PQexecParams(PGconn *conn,
 #                        const char *command,
 #                        int nParams,
@@ -219,16 +230,6 @@ PQerrorMessage.restype = c_char_p
 PQescapeLiteral = libpq.PQescapeLiteral
 PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_size_t]
 PQescapeLiteral.restype = c_char_p
-
-# PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
-PQtransactionStatus = libpq.PQtransactionStatus
-PQtransactionStatus.argtypes = [PGconn_p]
-PQtransactionStatus.restype = c_uint
-
-# int PQbackendPID(const PGconn *conn);
-PQbackendPID = libpq.PQbackendPID
-PQbackendPID.argtypes = [PGconn_p]
-PQbackendPID.restype = c_int
 
 # char *PQcmdStatus(PGresult *res);
 PQcmdStatus = libpq.PQcmdStatus

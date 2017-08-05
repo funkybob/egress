@@ -1,7 +1,6 @@
 
-from . import libpq
+from . import libpq, exceptions, wrap
 from .cursor import Cursor
-from . import exceptions
 
 
 EXC_MAP = {
@@ -78,16 +77,16 @@ EXC_MAP = {
 
 class Connection(object):
     def __init__(self, PGconn, **kwargs):
-        self.conn = PGconn
+        self.conn = wrap.Connection(PGconn)
         self.kwargs = kwargs
         self.cursors = []
-        self._status = libpq.PQstatus(PGconn)
+        self._status = self.conn.status()
         self._autocommit = False
-        self.pid = libpq.PQbackendPID(PGconn)
+        self.pid = self.conn.pid()
 
     @property
     def _in_txn(self):
-        txn_state = libpq.PQtransactionStatus(self.conn)
+        txn_state = self.conn.transaction_status()
         return txn_state != libpq.PQTRANS_IDLE
 
     def close(self):
@@ -107,7 +106,7 @@ class Connection(object):
             self.rollback()
 
         if self.conn is not None:
-            libpq.PQfinish(self.conn)
+            self.conn.close()
             self.conn = None
 
     def commit(self):
@@ -121,7 +120,7 @@ class Connection(object):
         method with void functionality.
         '''
         if self._in_txn:
-            res = libpq.PQexec(self.conn, b'COMMIT')
+            res = self.conn.execute('COMMIT')
             self._check_cmd_result(res)
 
     def rollback(self):
@@ -135,7 +134,7 @@ class Connection(object):
         implicit rollback to be performed.
         '''
         if self._in_txn:
-            res = libpq.PQexec(self.conn, b'ROLLBACK')
+            res = self.conn.execute('ROLLBACK')
             self._check_cmd_result(res)
 
     def cursor(self):
@@ -160,25 +159,23 @@ class Connection(object):
             pass
 
     def _check_status(self):
-        status = libpq.PQstatus(self.conn)
+        status = self.conn.status()
         if status == libpq.CONNECTION_OK:
             return
-        msg = libpq.PQerrorMessage(self.conn)
+        msg = self.conn.error_message()
         raise exceptions.DatabaseError(msg)
-        # Raise appropriate error
 
     def _check_cmd_result(self, result):
-        status = libpq.PQresultStatus(result)
+        status = result.status()
         if status in (libpq.PGRES_COMMAND_OK, libpq.PGRES_TUPLES_OK):
             return self._check_status()
-        msg = libpq.PQresultErrorMessage(result)
-        msg = msg.decode('utf-8').strip()
+        msg = result.error_message()
 
-        code = libpq.PQresultErrorField(result, libpq.PG_DIAG_SQLSTATE)
+        code = result.error_field(libpq.PG_DIAG_SQLSTATE)
         if code:
             exc_class = EXC_MAP.get(code[:2], exceptions.DatabaseError)
         else:
             exc_class = exceptions.DatabaseError
 
-        libpq.PQclear(result)
+        result.clear()
         raise exc_class(msg)

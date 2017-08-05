@@ -2,8 +2,8 @@
 from collections import namedtuple
 from ctypes import c_char_p, c_int, c_uint
 
-from . import libpq
-from . import types
+from . import libpq, types
+
 
 Description = namedtuple('Description', (
     'name',
@@ -26,7 +26,7 @@ class Cursor(object):
 
     def _free_result(self):
         if self._result:
-            libpq.PQclear(self._result)
+            self._result.clear()
             self._result = None
 
     def _cleanup(self):
@@ -44,24 +44,24 @@ class Cursor(object):
         self._cleanup()
 
         self._result = result
-        self._nfields = nfields = libpq.PQnfields(result)
+        self._nfields = nfields = result.nfields()
 
-        status = libpq.PQresultStatus(result)
+        status = result.status()
         if status == libpq.PGRES_COMMAND_OK:
-            count = libpq.PQcmdTuples(result)
+            count = result.cmd_tuples()
             if count:
                 self._rowcount = int(count)
             else:
                 self._rowcount = -1
         elif status == libpq.PGRES_TUPLES_OK:
-            self._rowcount = libpq.PQntuples(result)
+            self._rowcount = result.ntuples()
 
         desc = []
         for field in range(nfields):
-            ftype = libpq.PQftype(result, field)
-            fmod = libpq.PQfmod(result, field)
-            fname = libpq.PQfname(result, field)
-            fsize = libpq.PQfsize(result, field)
+            ftype = result.field_type(field)
+            fmod = result.field_modifier(field)
+            fname = result.field_name(field)
+            fsize = result.field_size(field)
             desc.append(Description(
                 fname,
                 types.infer_parser(ftype, fmod),
@@ -211,12 +211,12 @@ class Cursor(object):
             paramTypes = paramValues = paramLengths = paramFormats = None
 
         self.query = operation
+        # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
-            result = libpq.PQexec(self.conn.conn, b'BEGIN')
+            result = self.conn.conn.execute('BEGIN')
             self.conn._check_cmd_result(result)
 
-        result = libpq.PQexecParams(
-            self.conn.conn,
+        result = self.conn.conn.exec_params(
             operation,
             len(parameters),
             paramTypes,
@@ -252,12 +252,12 @@ class Cursor(object):
         Return values are not defined.
         '''
         # Prepare
-        prepared = libpq.PQprepare(self.conn, '', operation, len(seq_of_parameters[0]), self._guess_types(seq_of_parameters[0]))
+        prepared = self.conn.prepare('', operation, len(seq_of_parameters[0]), self._guess_types(seq_of_parameters[0]))
         #
         result = None
         for params in seq_of_parameters:
             if result:
-                libpq.PQclear(result)
+                result.clear()
             result = self.executeprepared(prepared, params)
 
         # Need a hook for this
@@ -282,9 +282,9 @@ class Cursor(object):
 
         rec = []
         for idx, desc in enumerate(self._description):
-            val = libpq.PQgetvalue(self._result, rownum, idx)
-            vlen = libpq.PQgetlength(self._result, rownum, idx)
-            if not val and libpq.PQgetisnull(self._result, rownum, idx):
+            val = self._result.get_value(rownum, idx)
+            vlen = self._result.get_length(rownum, idx)
+            if not val and self._result.get_isnull(rownum, idx):
                 val = None
             else:
                 val = desc.type_code(val, vlen)
