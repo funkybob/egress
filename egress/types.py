@@ -144,6 +144,7 @@ def parse_char(value, vlen, ftype=None, fmod=None):
     return value[:1].decode('utf-8')
 
 
+@register_parser(20)
 @register_parser(21)
 @register_parser(23)
 @register_parser(26)
@@ -161,7 +162,17 @@ def parse_integer(value, vlen, ftype=None, fmod=None):
     raise ValueError('Unexpected length for INT type: %r' % vlen)
 
 
-@register_parser(20)
+@register_format(int)
+def format_integer(value):
+    bits = value.bit_length()
+    if bits < 16:
+        return (21, struct.pack('!h', value), 2)
+    elif bits < 32:
+        return (23, struct.pack('!i', value), 4)
+    else:
+        return (20, struct.pack('!q', value), 8)
+
+
 def parse_uint(value, vlen, ftype=None, fmod=None):
     if vlen == 0:
         return 0
@@ -189,12 +200,12 @@ def parse_timestamp(value, vlen, ftype=None, fmod=None):
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!d', value[:vlen])[0]
-    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
 def format_timestamp(value):
-    value = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+    value = (value - datetime.datetime(2000, 1, 1))
     value = int(value.total_seconds() * 1000000)
     return (1184, struct.pack('!d', value), 8)
 
@@ -257,7 +268,17 @@ def parse_time(value, vlen, ftype=None, fmod=None):
 
 @register_format(datetime.time)
 def format_time(value):
-    return struct.pack('!d', int(value.strftime('%s')))
+    return (702, struct.pack('!d', int(value.strftime('%s'))), struct.calcsize('!d'))
+
+
+@register_parser(704)
+def parse_interval(value, vlen, ftype=None, fmod=None):
+    status, data0, data1 = struct.unpack('!iii', value[:vlen])
+
+
+# @register_format(datetime.timedelta)
+def format_interval(value):
+    pass
 
 
 @register_parser(19)
@@ -270,7 +291,12 @@ def parse_uuid(value, vlen, ftype=None, fmod=None):
     return uuid.uuid(bytes=value[:vlen])
 
 
-@register_parser(1700)
+@register_format(uuid.UUID)
+def format_uuid(value):
+    return (2950, value.bytes, 16)
+
+
+# @register_parser(1700)
 def parse_numeric(value, vlen, ftype=None, fmod=None):
     hsize = struct.calcsize('!hhhh')
     ndigits, weight, sign, dscale = struct.unpack('!hhhh', value[:hsize])
