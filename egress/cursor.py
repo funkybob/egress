@@ -188,6 +188,7 @@ class Cursor(object):
             while '%s' in operation:
                 operation = operation.replace('%s', '$%d' % ctr, 1)
                 ctr += 1
+            operation = operation.replace('%%', '%')
 
         if isinstance(operation, str):
             operation = operation.encode('utf-8')
@@ -252,16 +253,15 @@ class Cursor(object):
         Return values are not defined.
         '''
         # Prepare
-        prepared = self.conn.prepare('', operation, len(seq_of_parameters[0]), self._guess_types(seq_of_parameters[0]))
-        #
         result = None
         for params in seq_of_parameters:
             if result:
                 result.clear()
-            result = self.executeprepared(prepared, params)
+            result = self.execute(operation, params)
 
         # Need a hook for this
-        self._set_result(result)
+        if result is not None:
+            self._set_result(result)
 
     def fetchone(self):
         '''
@@ -289,7 +289,7 @@ class Cursor(object):
             else:
                 val = desc.type_code(val, vlen)
             rec.append(val)
-        return rec
+        return tuple(rec)
 
     def fetchmany(self, size=None):
         '''
