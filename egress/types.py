@@ -199,7 +199,7 @@ def parse_timestamp(value, vlen, ftype=None, fmod=None):
 
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
-    val = struct.unpack('!q', value[:vlen])[0]
+    val = struct.unpack('!q', value[:8])[0]
     return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
