@@ -5,74 +5,82 @@ from .cursor import Cursor
 
 EXC_MAP = {
     # Class 0A - Feature Not Supported
-    b'0A': exceptions.NotSupportedError,
+    '0A': exceptions.NotSupportedError,
 
     # Class 21 - Cardinality Violation
-    b'21': exceptions.ProgrammingError,
+    '21': exceptions.ProgrammingError,
     # Class 22 - Data Exception
-    b'22': exceptions.DataError,
+    '22': exceptions.DataError,
     # Class 23 - Integrity Constraint Violation
-    b'23': exceptions.IntegrityError,
+    '23': exceptions.IntegrityError,
     # Class 24 - Invalid Cursor State
-    b'24': exceptions.InternalError,
+    '24': exceptions.InternalError,
     # Class 25 - Invalid Transaction State
-    b'25': exceptions.InternalError,
+    '25': exceptions.InternalError,
     # Class 26 - Invalid SQL Statement Name
-    b'26': exceptions.OperationalError,
+    '26': exceptions.OperationalError,
     # Class 27 - Triggered Data Change Violation
-    b'27': exceptions.OperationalError,
+    '27': exceptions.OperationalError,
     # Class 28 - Invalid Authorization Specification
-    b'28': exceptions.OperationalError,
+    '28': exceptions.OperationalError,
     # Class 2B - Dependent Privilege Descriptors Still Exist
-    b'2B': exceptions.InternalError,
+    '2B': exceptions.InternalError,
     # Class 2D - Invalid Transaction Termination
-    b'2D': exceptions.InternalError,
+    '2D': exceptions.InternalError,
     # Class 2F - SQL Routine Exception
-    b'2F': exceptions.InternalError,
+    '2F': exceptions.InternalError,
 
     # Class 34 - Invalid Cursor Name
-    b'34': exceptions.OperationalError,
+    '34': exceptions.OperationalError,
     # Class 38 - External Routine Exception
-    b'38': exceptions.InternalError,
+    '38': exceptions.InternalError,
     # Class 39 - External Routine Invocation Exception
-    b'39': exceptions.InternalError,
+    '39': exceptions.InternalError,
     # Class 3B - Savepoint Exception
-    b'3B': exceptions.InternalError,
+    '3B': exceptions.InternalError,
     # Class 3D - Invalid Catalog Name
-    b'3D': exceptions.ProgrammingError,
+    '3D': exceptions.ProgrammingError,
     # Class 3F - Invalid Schema Name
-    b'3F': exceptions.ProgrammingError,
+    '3F': exceptions.ProgrammingError,
 
     # Class 40 - Transaction Rollback
-    b'40': exceptions.ProgrammingError,  # TransactionRollbackError,
+    '40': exceptions.ProgrammingError,  # TransactionRollbackError,
     # Class 42 - Syntax Error or Access Rule Violation
-    b'42': exceptions.ProgrammingError,
+    '42': exceptions.ProgrammingError,
     # Class 44 - WITH CHECK OPTION Violation
-    b'44': exceptions.ProgrammingError,
+    '44': exceptions.ProgrammingError,
 
-    # b'55': exceptions.QueryCanceledError,
-    # b'57': exceptions.QueryCanceledError,
-    # b'50': exceptions.QueryCanceledError,
-    # b'51': exceptions.QueryCanceledError,
-    # b'54': exceptions.QueryCanceledError,
+    # '55': exceptions.QueryCanceledError,
+    # '57': exceptions.QueryCanceledError,
+    # '50': exceptions.QueryCanceledError,
+    # '51': exceptions.QueryCanceledError,
+    # '54': exceptions.QueryCanceledError,
     # Class 53 - Insufficient Resources
-    b'53': exceptions.OperationalError,
+    '53': exceptions.OperationalError,
     # Class 54 - Program Limit Exceeded
-    b'54': exceptions.OperationalError,
+    '54': exceptions.OperationalError,
     # Class 55 - Object Not In Prerequisite State
-    b'55': exceptions.OperationalError,
+    '55': exceptions.OperationalError,
     # Class 57 - Operator Intervention
-    b'57': exceptions.OperationalError,
+    '57': exceptions.OperationalError,
     # Class 58 - System Error (errors external to PostgreSQL itself)
-    b'58': exceptions.OperationalError,
+    '58': exceptions.OperationalError,
 
     # Class F0 - Configuration File Error
-    b'F0': exceptions.InternalError,
+    'F0': exceptions.InternalError,
     # Class P0 - PL/pgSQL Error
-    b'P0': exceptions.InternalError,
+    'P0': exceptions.InternalError,
     # Class XX - Internal Error
-    b'X': exceptions.InternalError,
+    'X': exceptions.InternalError,
 }
+
+
+def requires_open(func):
+    def _wrapper(self, *args, **kwargs):
+        if not self.conn:
+            raise exceptions.Error('No connection')
+        return func(self, *args, **kwargs)
+    return _wrapper
 
 
 class Connection(object):
@@ -85,6 +93,7 @@ class Connection(object):
         self.pid = self.conn.pid()
 
     @property
+    @requires_open
     def _in_txn(self):
         txn_state = self.conn.transaction_status()
         return txn_state != libpq.PQTRANS_IDLE
