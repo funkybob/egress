@@ -193,21 +193,24 @@ def parse_date(value, vlen, ftype=None, fmod=None):
 
 @register_parser(1114)
 def parse_timestamp(value, vlen, ftype=None, fmod=None):
-    val = struct.unpack('!d', value[:vlen])[0]
+    val = struct.unpack('!q', value[:vlen])[0]
     return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
-    val = struct.unpack('!d', value[:vlen])[0]
+    val = struct.unpack('!q', value[:vlen])[0]
     return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
 def format_timestamp(value):
-    value = (value - datetime.datetime(2000, 1, 1))
-    value = int(value.total_seconds() * 1000000)
-    return (1184, struct.pack('!d', value), 8)
+    if value.tzinfo:
+        val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+    else:
+        val = (value - datetime.datetime(2000, 1, 1))
+    val = int(val.total_seconds() * 1000000)
+    return (1184, struct.pack('!q', val), 8)
 
 
 @register_parser(25)
@@ -217,7 +220,7 @@ def parse_string(value, vlen, ftype=None, fmod=None):
     return cast(value, c_char_p).value.decode('utf-8')
 
 
-@register_format(str)
+# @register_format(str)
 def format_string(value):
     value = value.encode('utf-8')
     length = len(value)
@@ -288,7 +291,7 @@ def parse_namedata(value, vlen, ftype=None, fmod=None):
 
 @register_parser(2950)
 def parse_uuid(value, vlen, ftype=None, fmod=None):
-    return uuid.uuid(bytes=value[:vlen])
+    return uuid.UUID(bytes=value[:vlen])
 
 
 @register_format(uuid.UUID)
@@ -296,18 +299,48 @@ def format_uuid(value):
     return (2950, value.bytes, 16)
 
 
-# @register_parser(1700)
+@register_parser(1700)
 def parse_numeric(value, vlen, ftype=None, fmod=None):
     hsize = struct.calcsize('!hhhh')
     ndigits, weight, sign, dscale = struct.unpack('!hhhh', value[:hsize])
     desc = '!%dh' % ndigits
+    n = Decimal(0)
     digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
-    return Decimal('0')
+    for digit in digits:
+        n = (n * 10000) + digit
+    n /= (10000 ** (dscale-1))
+    if sign:
+        n = n * -1
+    return n
 
 
-# @register_format(Decimal)
+@register_format(Decimal)
 def format_decimal(value):
-    return (1700, value, 1)
+    # DecimalTuple(sign=0, digits=(2, 4, 9, 6), exponent=-2)
+    sign, digits, exponent = value.as_tuple()
+    if exponent:
+        frac = digits[exponent:]
+        digits = digits[:exponent]
+    else:
+        frac = []
+
+    # return (1700, struct.pack('!hhhh%dh' % ndigits, ndigits, weight, sign, dscale, *digits), 1)
+    return (1700, struct.pack('!hhhh', 0, 0, 0, 0), struct.calcsuze('!hhhh'))
+
+
+# @register_parser(2277)
+def parse_anyarray(value, vlen, ftype=None, fmod=None):
+    offs = 0
+    size = struct.calcsize('!iii')
+    ndim, flags, etype = struct.unpack('!iii', value[:size])
+    offs += size
+    size = struct.calcsize('!ii')
+    dim_info = []
+    for _ in range(ndim):
+        dim_info.append(
+            struct.unpack('!ii', value[offs:offs+size])
+        )
+        offs += size
 
 
 def infer_parser(ftype, fmod):
