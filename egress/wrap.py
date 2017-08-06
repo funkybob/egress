@@ -29,7 +29,7 @@ class Result:
 
     def error_field(self, field):
         msg = libpq.PQresultErrorField(self._result, field)
-        return msg.decode('utf-8')
+        return msg.decode('utf-8') if msg else msg
 
     def nfields(self):
         return libpq.PQnfields(self._result)
