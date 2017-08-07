@@ -1,5 +1,5 @@
 
-from . import libpq, exceptions, wrap
+from . import libpq, exceptions
 from .cursor import Cursor
 
 
