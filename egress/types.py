@@ -173,7 +173,7 @@ def parse_integer(value, vlen, ftype=None, fmod=None):
     if vlen == -1:
         return None
     if vlen == 0:
-        return 0
+        return None
     if vlen == 2:
         return struct.unpack('!h', value[:vlen])[0]
     if vlen == 4:
