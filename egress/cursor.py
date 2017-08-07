@@ -153,8 +153,9 @@ class Cursor(object):
         the cursor.
         '''
         self._cleanup()
-        self.conn._close_cursor(self)
-        self.conn = None
+        if self.conn:
+            self.conn._close_cursor(self)
+            self.conn = None
 
     def execute(self, operation, parameters=None):
         '''
