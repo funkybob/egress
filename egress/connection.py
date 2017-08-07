@@ -167,7 +167,7 @@ class Connection(object):
         except ValueError:
             pass
 
-    def _check_status(self):
+    def _check_conn_status(self):
         status = self.conn.status()
         if status == libpq.CONNECTION_OK:
             return
@@ -177,7 +177,7 @@ class Connection(object):
     def _check_cmd_result(self, result):
         status = result.status()
         if status in (libpq.PGRES_COMMAND_OK, libpq.PGRES_TUPLES_OK):
-            return self._check_status()
+            return self._check_conn_status()
         msg = result.error_message()
 
         code = result.error_field(libpq.PG_DIAG_SQLSTATE)
