@@ -2,6 +2,21 @@ from . import libpq
 
 
 class Result:
+    PGRES_EMPTY_QUERY = 0       # empty query string was executed
+    PGRES_COMMAND_OK = 1        # a query command that doesn't return anything was
+                                # executed properly by the backend
+    PGRES_TUPLES_OK = 2         # a query command that returns tuples was executed
+                                # properly by the backend, PGresult contains the
+                                # result tuples
+    PGRES_COPY_OUT = 3          # Copy Out data transfer in progress
+    PGRES_COPY_IN = 4           # Copy In data transfer in progress
+    PGRES_BAD_RESPONSE = 5      # an unexpected response was recv'd from the
+                                # backend
+    PGRES_NONFATAL_ERROR = 6    # notice or warning message
+    PGRES_FATAL_ERROR = 7       # query failed
+    PGRES_COPY_BOTH = 8         # Copy In/Out data transfer in progress
+    PGRES_SINGLE_TUPLE = 9      # single tuple from larger resultset
+
     def __init__(self, result, connection):
         self._result = result
         self._conn = connection
@@ -67,6 +82,18 @@ class Result:
 
 
 class PGConnection:
+    CONNECTION_OK = 0
+    CONNECTION_BAD = 1
+    # XXX The rest are for async connections
+    CONNECTION_STARTED = 2              # Waiting for connection to be made.
+    CONNECTION_MADE = 3                 # Connection OK; waiting to send.
+    CONNECTION_AWAITING_RESPONSE = 4    # Waiting for a response from the postmaster
+    CONNECTION_AUTH_OK = 5              # Received authentication; waiting for
+                                        # backend startup.
+    CONNECTION_SETENV = 6               # Negotiating environment.
+    CONNECTION_SSL_STARTUP = 7          # Negotiating SSL.
+    CONNECTION_NEEDED = 8               # Internal state: connect() needed
+
     def __init__(self, conn=None):
         self._conn = conn
 

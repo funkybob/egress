@@ -3,7 +3,6 @@ from .exceptions import *
 from .connection import Connection
 from .types import *
 
-from . import libpq
 from . import wrap
 
 # Module Interface
@@ -23,7 +22,7 @@ def connect(**kwargs):
     ])
     conn = wrap.PGConnection()
     conn.connect(conn_str)
-    if conn.status() == libpq.CONNECTION_BAD:
+    if conn.status() == conn.CONNECTION_BAD:
         msg = conn.error_message()
         raise OperationalError(msg)
     return Connection(conn, **kwargs)
