@@ -24,6 +24,12 @@ class Cursor(object):
         self._result = None
         self._cleanup()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def _free_result(self):
         if self._result:
             self._result.clear()
