@@ -235,3 +235,9 @@ PQescapeLiteral.restype = c_char_p
 PQcmdStatus = libpq.PQcmdStatus
 PQcmdStatus.argtypes = [PGresult_p]
 PQcmdStatus.restype = c_char_p
+
+
+# char *PQresStatus(ExecStatusType status);
+PQresStatus = libpq.PQresStatus
+PQresStatus.argtypes = [c_int]
+PQresStatus.restype = c_char_p
