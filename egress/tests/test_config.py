@@ -8,12 +8,12 @@ dbhost = os.environ.get('EGRESS_TESTDB_HOST', None)
 dbpassword = os.environ.get('EGRESS_TESTDB_PASSWORD', None)
 dbport = os.environ.get('EGRESS_TESTDB_PORT', None)
 
-DATABASES = {}
+DATABASE = {}
 if dbuser:
-    DATABASES['user'] = dbuser
+    DATABASE['user'] = dbuser
 if dbhost:
-    DATABASES['host'] = dbhost
+    DATABASE['host'] = dbhost
 if dbpassword:
-    DATABASES['password'] = dbpassword
+    DATABASE['password'] = dbpassword
 if dbport:
-    DATABASES['port'] = dbport
+    DATABASE['port'] = dbport
