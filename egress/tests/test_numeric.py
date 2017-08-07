@@ -16,13 +16,18 @@ def connect():
 def setUpModule():
     '''Create a connection and a database'''
     connection = connect()
-    create_db(connection.conn)
+    connection._autocommit = True
+    with connection.cursor() as cursor:
+        create_db(cursor)
 
 
 def tearDownModule():
     '''Drop the database and close the connection'''
     connection = connect()
-    drop_db(connection.conn)
+    connection._autocommit = True
+    with connection.cursor() as cursor:
+        drop_db(cursor)
+
     connection.close()
 
 
