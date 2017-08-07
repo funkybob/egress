@@ -3,9 +3,17 @@
 
 import os
 
-DATABASES = {
-    'user': os.environ.get('EGRESS_TESTDB_USER', 'postgres'),
-    'host': os.environ.get('EGRESS_TESTDB_HOST', 'localhost'),
-    'password': os.environ.get('EGRESS_TESTDB_PASSWORD', None),
-    'port': '',
-}
+dbuser = os.environ.get('EGRESS_TESTDB_USER', None)
+dbhost = os.environ.get('EGRESS_TESTDB_HOST', None)
+dbpassword = os.environ.get('EGRESS_TESTDB_PASSWORD', None)
+dbport = os.environ.get('EGRESS_TESTDB_PORT', None)
+
+DATABASES = {}
+if dbuser:
+    DATABASES['user'] = dbuser
+if dbhost:
+    DATABASES['host'] = dbhost
+if dbpassword:
+    DATABASES['password'] = dbpassword
+if dbport:
+    DATABASES['port'] = dbport
