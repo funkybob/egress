@@ -8,9 +8,10 @@ from django.db.backends.base.creation import BaseDatabaseCreation
 from django.db.backends.base.operations import BaseDatabaseOperations
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
-from django.db.backends.postgresql.introspection import DatabaseIntrospection
 from django.db.backends.postgresql.client import DatabaseClient
+# from django.db.backends.postgresql.creation import DatabaseCreation
 from django.db.backends.postgresql.features import DatabaseFeatures
+from django.db.backends.postgresql.introspection import DatabaseIntrospection
 # from django.db.backends.postgresql.operations import DatabaseOperations
 # from django.db.backends.postgresql.schema import DatabaseSchemaEditor
 
@@ -444,10 +445,10 @@ class DatabaseOperations(BaseDatabaseOperations):
     def adapt_timefield_value(self, value):
         return value
 
-    def adapt_ipaddressfield_value(self, value):
-        if value:
-            return Inet(value)
-        return None
+    # def adapt_ipaddressfield_value(self, value):
+    #     if value:
+    #         return Inet(value)
+    #     return None
 
     def subtract_temporals(self, internal_type, lhs, rhs):
         if internal_type == 'DateField':
