@@ -5,8 +5,8 @@ Tests for postgres numeric types
 import unittest
 
 import egress as db
-from egress.tests.test_config import DATABASE
-from egress.tests.test_utils import create_db, drop_db
+from egress.tests.config import DATABASE
+from egress.tests.utils import create_db, drop_db
 
 
 def connect():
