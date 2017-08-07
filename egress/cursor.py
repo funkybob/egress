@@ -62,9 +62,13 @@ class Cursor(object):
             fmod = result.field_modifier(field)
             fname = result.field_name(field)
             fsize = result.field_size(field)
+            try:
+                cast_func = types.infer_parser(ftype, fmod)
+            except:
+                raise TypeError('Unknown type for field %r: %r %r' % (fname, ftype, fmod))
             desc.append(Description(
                 fname,
-                types.infer_parser(ftype, fmod),
+                cast_func,
                 None,
                 fsize,
                 None,
@@ -217,7 +221,6 @@ class Cursor(object):
         if not (self.conn._autocommit or self.conn._in_txn):
             result = self.conn.conn.execute('BEGIN')
             self.conn._check_cmd_result(result)
-
         result = self.conn.conn.exec_params(
             operation,
             len(parameters),
@@ -227,6 +230,7 @@ class Cursor(object):
             paramFormats,
             1
         )
+        # print(result.cmd_status())
 
         # Did it succeed?
         self.conn._check_cmd_result(result)
