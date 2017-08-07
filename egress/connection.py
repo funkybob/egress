@@ -118,6 +118,7 @@ class Connection(object):
             self.conn.finish()
             self.conn = None
 
+    @requires_open
     def commit(self):
         '''
         Commit any pending transaction to the database.
@@ -132,6 +133,7 @@ class Connection(object):
             res = self.conn.execute('COMMIT')
             self._check_cmd_result(res)
 
+    @requires_open
     def rollback(self):
         '''
         This method is optional since not all databases provide transaction
@@ -167,6 +169,7 @@ class Connection(object):
         except ValueError:
             pass
 
+    @requires_open
     def _check_conn_status(self):
         status = self.conn.status()
         if status == libpq.CONNECTION_OK:
