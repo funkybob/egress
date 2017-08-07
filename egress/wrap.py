@@ -66,7 +66,7 @@ class Result:
         return libpq.PQgetisnull(self._result, row, field)
 
 
-class Connection:
+class PGConnection:
     def __init__(self, conn=None):
         self._conn = conn
 

@@ -4,6 +4,7 @@ from .connection import Connection
 from .types import *
 
 from . import libpq
+from . import wrap
 
 # Module Interface
 
@@ -20,11 +21,10 @@ def connect(**kwargs):
         for item in kwargs.items()
         if item[1]
     ])
-    conn = libpq.PQconnectdb(conn_str.encode('utf-8'))
-    status = libpq.PQstatus(conn)
-    if status == libpq.CONNECTION_BAD:
-        msg = libpq.PQerrorMessage(conn)
-        libpq.PQfinish(conn)
+    conn = wrap.PGConnection()
+    conn.connect(conn_str)
+    if conn.status() == libpq.CONNECTION_BAD:
+        msg = conn.error_message()
         raise OperationalError(msg)
     return Connection(conn, **kwargs)
 
