@@ -104,11 +104,7 @@ def infer_parser(ftype, fmod):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    return partial(
-        PARSER_MAP[ftype],
-        ftype=ftype,
-        fmod=fmod,
-    )
+    return partial(PARSER_MAP[ftype], ftype=ftype, fmod=fmod)
 
 
 def format_type(value):
@@ -221,7 +217,7 @@ def parse_timestamp(value, vlen, ftype=None, fmod=None):
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
@@ -242,10 +238,10 @@ def parse_string(value, vlen, ftype=None, fmod=None):
 
 
 # @register_format(str)
-def format_string(value):
-    value = value.encode('utf-8')
-    length = len(value)
-    return (1042, struct.pack('%ds' % length, value), length,)
+# def format_string(value):
+#     value = value.encode('utf-8')
+#     length = len(value)
+#     return (1042, struct.pack('%ds' % length, value), length,)
 
 
 @register_parser(650)
@@ -290,21 +286,6 @@ def parse_time(value, vlen, ftype=None, fmod=None):
     return datetime.time.fromtimestamp(struct.unpack('!i', value[:vlen])[0])
 
 
-@register_format(datetime.time)
-def format_time(value):
-    return (702, struct.pack('!d', int(value.strftime('%s'))), struct.calcsize('!d'))
-
-
-@register_parser(704)
-def parse_interval(value, vlen, ftype=None, fmod=None):
-    status, data0, data1 = struct.unpack('!iii', value[:vlen])
-
-
-# @register_format(datetime.timedelta)
-def format_interval(value):
-    pass
-
-
 @register_parser(19)
 def parse_namedata(value, vlen, ftype=None, fmod=None):
     return value[:vlen].decode('utf-8')
@@ -322,31 +303,22 @@ def format_uuid(value):
 
 @register_parser(1700)
 def parse_numeric(value, vlen, ftype=None, fmod=None):
-    hsize = struct.calcsize('!hhhh')
-    ndigits, weight, sign, dscale = struct.unpack('!hhhh', value[:hsize])
-    desc = '!%dh' % ndigits
-    n = Decimal(0)
+    if not vlen:
+        return None
+    hsize = struct.calcsize('!HhHH')
+    ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
+    if sign == 0xc000:
+        return Decimal('NaN')
+    desc = '!%dH' % ndigits
     digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
-    for digit in digits:
-        n = (n * 10000) + digit
-    n /= (10000 ** (dscale-1))
-    if sign:
-        n = n * -1
+
+    n = '-' if sign else ''
+    for idx, digit in enumerate(digits):
+        n += '{:04d}'.format(digit)
+        if idx == weight:
+            n += '.'
+    n = Decimal(n)
     return n
-
-
-# @register_format(Decimal)
-def format_decimal(value):
-    # DecimalTuple(sign=0, digits=(2, 4, 9, 6), exponent=-2)
-    sign, digits, exponent = value.as_tuple()
-    if exponent:
-        frac = digits[exponent:]
-        digits = digits[:exponent]
-    else:
-        frac = []
-
-    # return (1700, struct.pack('!hhhh%dh' % ndigits, ndigits, weight, sign, dscale, *digits), 1)
-    return (1700, struct.pack('!hhhh', 0, 0, 0, 0), struct.calcsuze('!hhhh'))
 
 
 # @register_parser(2277)
@@ -367,3 +339,23 @@ def parse_anyarray(value, vlen, ftype=None, fmod=None):
 @register_parser(1003)
 def parse_name(value, vlen, ftype=None, fmod=None):
     return parse_anyarray(value, vlen, ftype, fmod)
+
+
+@register_parser(1186)
+def parse_interval(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
+    time_us, days, months = struct.unpack('!qii', value[:vlen])
+    val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
+    return val
+
+
+@register_parser(1083)
+def parse_time_of_day(value, vlen, ftype=None, fmod=None):
+    time_us = struct.unpack('!q', value[:vlen])[0]
+    return datetime.datetime.fromtimestamp(time_us / 1000000).time()
+
+
+@register_parser(datetime.time)
+def format_time_of_day(value):
+    return (1083, struct.pack('!d', int(value.strftime('%s'))), struct.calcsize('!d'))
