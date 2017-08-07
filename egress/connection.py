@@ -84,8 +84,8 @@ def requires_open(func):
 
 
 class Connection(object):
-    def __init__(self, PGconn, **kwargs):
-        self.conn = wrap.PGConnection(PGconn)
+    def __init__(self, conn, **kwargs):
+        self.conn = conn
         self.kwargs = kwargs
         self.cursors = []
         self._status = self.conn.status()
