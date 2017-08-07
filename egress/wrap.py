@@ -19,6 +19,10 @@ class Result:
         msg = libpq.PQresultErrorMessage(self._result)
         return msg.decode('utf-8')
 
+    def cmd_status(self):
+        msg = libpq.PQcmdStatus(self._result)
+        return msg.decode('utf-8')
+
     def clear(self):
         if self._result:
             libpq.PQclear(self._result)
