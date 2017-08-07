@@ -100,6 +100,27 @@ PARSER_MAP = {}
 FORMAT_MAP = {}
 
 
+def infer_parser(ftype, fmod):
+    '''
+    Given a postgres type OID and modifier, infer the related Type class
+    '''
+    return partial(
+        PARSER_MAP[ftype],
+        ftype=ftype,
+        fmod=fmod,
+    )
+
+
+def format_type(value):
+    if isinstance(value, Decimal):
+        value = float(value)
+    try:
+        return FORMAT_MAP[type(value)](value) + (1,)
+    except KeyError:
+        value = str(value).encode('utf-8')
+        return (0, value, 0, 0)
+
+
 def register_format(typ):
     def _inner(func):
         FORMAT_MAP[typ] = func
@@ -194,13 +215,13 @@ def parse_date(value, vlen, ftype=None, fmod=None):
 @register_parser(1114)
 def parse_timestamp(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
@@ -314,7 +335,7 @@ def parse_numeric(value, vlen, ftype=None, fmod=None):
     return n
 
 
-@register_format(Decimal)
+# @register_format(Decimal)
 def format_decimal(value):
     # DecimalTuple(sign=0, digits=(2, 4, 9, 6), exponent=-2)
     sign, digits, exponent = value.as_tuple()
@@ -343,24 +364,6 @@ def parse_anyarray(value, vlen, ftype=None, fmod=None):
         offs += size
 
 
-def infer_parser(ftype, fmod):
-    '''
-    Given a postgres type OID and modifier, infer the related Type class
-    '''
-    if ftype not in PARSER_MAP:
-        raise KeyError("Unknown type: %r:%r" % (ftype, fmod))
-    return partial(
-        PARSER_MAP[ftype],
-        ftype=ftype,
-        fmod=fmod,
-    )
-
-
-def format_type(value):
-    if isinstance(value, Decimal):
-        value = float(value)
-    try:
-        return FORMAT_MAP[type(value)](value) + (1,)
-    except KeyError:
-        value = str(value).encode('utf-8')
-        return (0, value, 0, 0)
+@register_parser(1003)
+def parse_name(value, vlen, ftype=None, fmod=None):
+    return parse_anyarray(value, vlen, ftype, fmod)
