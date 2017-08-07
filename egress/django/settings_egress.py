@@ -16,18 +16,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'egress.django',
         'NAME': 'django_test',
-        'USER': 'postgres',
-        'PASSWORD': 'SlimShady96',
-        'HOST': 'localhost',
-        'PORT': '',
     },
     'other': {
         'ENGINE': 'egress.django',
         'NAME': 'django_test',
-        'USER': 'postgres',
-        'PASSWORD': 'SlimShady96',
-        'HOST': 'localhost',
-        'PORT': '',
     }
 }
 
