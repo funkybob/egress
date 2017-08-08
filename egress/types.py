@@ -232,6 +232,7 @@ def format_timestamp(value):
 
 
 @register_parser(25)
+@register_parser(1009)
 @register_parser(1042)
 @register_parser(1043)
 def parse_string(value, vlen, ftype=None, fmod=None):
