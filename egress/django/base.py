@@ -479,7 +479,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'BooleanField': 'boolean',
         'CharField': 'varchar(%(max_length)s)',
         'DateField': 'date',
-        'DateTimeField': 'timestamptz',
+        'DateTimeField': 'timestamp with time zone',
         'DecimalField': 'numeric(%(max_digits)s, %(decimal_places)s)',
         'DurationField': 'interval',
         'FileField': 'varchar(%(max_length)s)',
@@ -522,6 +522,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
+        with connection.cursor() as cur:
+            cur.execute('SET TIME ZONE UTC;')
+            connection.commit()
         return connection
 
     def _set_autocommit(self, autocommit):
