@@ -36,7 +36,7 @@ class Result:
 
     def cmd_status(self):
         msg = libpq.PQcmdStatus(self._result)
-        return msg.decode('utf-8')
+        return msg.decode('utf-8') if msg else msg
 
     def clear(self):
         if self._result:
