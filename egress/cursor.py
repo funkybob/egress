@@ -306,7 +306,7 @@ class Cursor(object):
             if not val and self._result.get_isnull(rownum, idx):
                 val = None
             else:
-                val = desc.type_code(val, vlen)
+                val = desc.type_code.parse(val, vlen)
             rec.append(val)
         return tuple(rec)
 
