@@ -39,22 +39,25 @@ class TestNumericTypes(unittest.TestCase):
     '''
     Tests for postgres numeric types
     '''
-    def execute_operation_on_db(self, operation):
+    @staticmethod
+    def execute_operation_on_db(operation):
         connection = connect(dbname=db_name)
         connection._autocommit = True
         with connection.cursor() as cursor:
             cursor.execute(operation)
             return cursor.rowcount
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         create_table = """
         CREATE TABLE bookings (best_price numeric(10,2))
         """
-        self.execute_operation_on_db(create_table)
+        cls.execute_operation_on_db(create_table)
 
-    def tearDown(self):
+    @classmethod
+    def tearDownClass(cls):
         create_table = """DROP TABLE bookings"""
-        self.execute_operation_on_db(create_table)
+        cls.execute_operation_on_db(create_table)
 
     def test_insert_numeric_ok(self):
         insert_numeric = """
