@@ -136,6 +136,8 @@ def format_none(value):
 
 @register_parser(16)
 def parse_bool(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return struct.unpack('?', value[:1])[0]
 
 
@@ -146,6 +148,8 @@ def format_bool(value):
 
 @register_parser(17)
 def parse_bytea(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return value[:vlen]
 
 
@@ -156,6 +160,8 @@ def format_bytea(value):
 
 @register_parser(18)
 def parse_char(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return value[:1].decode('utf-8')
 
 
@@ -209,8 +215,9 @@ def format_date(value):
 
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
-    val = struct.unpack('!q', value[:8])[0]
-    # return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+    if not vlen:
+        return None
+    val = struct.unpack('!q', value[:vlen])[0]
     return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
@@ -228,6 +235,8 @@ def format_timestamp(value):
 @register_parser(1042)
 @register_parser(1043)
 def parse_string(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return cast(value, c_char_p).value.decode('utf-8')
 
 
@@ -243,7 +252,9 @@ def parse_string(value, vlen, ftype=None, fmod=None):
 @register_parser(650)
 @register_parser(869)
 def parse_ipaddr(value, vlen, ftype=None, fmod=None):
-    ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
+    if not vlen:
+        return None
+    ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:vlen])
     if nb == 4:
         if ip_bits:
             return IPv4Network((value[4:4+nb], ip_bits))
@@ -257,6 +268,8 @@ def parse_ipaddr(value, vlen, ftype=None, fmod=None):
 
 @register_parser(3802)
 def parse_jsonb(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     if value[0] == b'\x01':
         return json.loads(value[1:vlen].decode('utf-8'))
     return value[:vlen].decode('utf-8')
@@ -264,11 +277,15 @@ def parse_jsonb(value, vlen, ftype=None, fmod=None):
 
 @register_parser(700)
 def parse_float(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return struct.unpack('!f', value[:vlen])[0]
 
 
 @register_parser(701)
 def parse_double(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return struct.unpack('!d', value[:vlen])[0]
 
 
@@ -279,11 +296,15 @@ def format_double(value):
 
 @register_parser(19)
 def parse_namedata(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return value[:vlen].decode('utf-8')
 
 
 @register_parser(2950)
 def parse_uuid(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return uuid.UUID(bytes=value[:vlen])
 
 
@@ -302,8 +323,12 @@ def parse_numeric(value, vlen, ftype=None, fmod=None):
         return Decimal('NaN')
     desc = '!%dH' % ndigits
     digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
-
     n = '-' if sign else ''
+    # numeric has a form of compression where if the remaining digits are 0,
+    # they are not sent, even if we haven't reached the decimal point yet!
+    while weight >= len(digits):
+        digits = digits + (0,)
+
     for idx, digit in enumerate(digits):
         n += '{:04d}'.format(digit)
         if idx == weight:
@@ -337,6 +362,8 @@ def format_numeric(value):
 
 # @register_parser(2277)
 def parse_anyarray(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     offs = 0
     size = struct.calcsize('!iii')
     ndim, flags, etype = struct.unpack('!iii', value[:size])
@@ -352,6 +379,8 @@ def parse_anyarray(value, vlen, ftype=None, fmod=None):
 
 @register_parser(1003)
 def parse_name(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return parse_anyarray(value, vlen, ftype, fmod)
 
 
@@ -369,6 +398,8 @@ def parse_time_of_day(value, vlen, ftype=None, fmod=None):
     '''
     64bit int of uSec since midnight.
     '''
+    if not vlen:
+        return None
     time_us = struct.unpack('!q', value[:vlen])[0]
     val, microsecond = divmod(time_us, 1000000)
     val, second = divmod(val, 60)
@@ -387,4 +418,6 @@ def format_time_of_day(value):
 
 @register_parser(705)
 def parse_unknown(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     return value[:vlen].decode('utf-8')
