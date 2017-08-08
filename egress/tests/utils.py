@@ -1,13 +1,13 @@
-prefix = 'test_egress_'
-create_db_command = 'create database %sdb1'
-drop_db_command = 'drop database %sdb1'
+db_name = 'test_egress_001'
+create_db_command = 'create database %s'
+drop_db_command = 'drop database %s'
 
 
-def create_db(cursor, dbname_prefix=None):
-    dbname_prefix = dbname_prefix or prefix
-    cursor.execute(create_db_command % dbname_prefix)
+def create_db(cursor, name=None):
+    name = name or db_name
+    cursor.execute(create_db_command % name)
 
 
-def drop_db(cursor, dbname_prefix=None):
-    dbname_prefix = dbname_prefix or prefix
-    cursor.execute(drop_db_command % dbname_prefix)
+def drop_db(cursor, name=None):
+    name = name or db_name
+    cursor.execute(drop_db_command % name)
