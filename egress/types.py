@@ -208,7 +208,8 @@ def format_date(value):
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+    # return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
@@ -367,10 +368,25 @@ def parse_interval(value, vlen, ftype=None, fmod=None):
 
 @register_parser(1083)
 def parse_time_of_day(value, vlen, ftype=None, fmod=None):
+    '''
+    64bit int of uSec since midnight.
+    '''
     time_us = struct.unpack('!q', value[:vlen])[0]
-    return datetime.datetime.utcfromtimestamp(time_us / 1000000).time()
+    val, microsecond = divmod(time_us, 1000000)
+    val, second = divmod(val, 60)
+    hour, minute = divmod(val, 60)
+    return datetime.time(hour, minute, second, microsecond)
 
 
-@register_parser(datetime.time)
+@register_format(datetime.time)
 def format_time_of_day(value):
-    return (1083, struct.pack('!d', int(value.strftime('%s'))), struct.calcsize('!d'))
+    '''
+    64bit int of uSec since midnight.
+    '''
+    val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
+    return (1083, struct.pack('!q', val), struct.calcsize('!q'))
+
+
+@register_parser(705)
+def parse_unknown(value, vlen, ftype=None, fmod=None):
+    return value[:vlen].decode('utf-8')
