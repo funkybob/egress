@@ -96,149 +96,171 @@ DATETIME = DBAPITypeObject()
 ROWID = DBAPITypeObject()
 
 
-PARSER_MAP = {}
-FORMAT_MAP = {}
-
-
 def infer_parser(ftype, fmod):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    return partial(PARSER_MAP[ftype], ftype=ftype, fmod=fmod)
+    return BaseType._oid[ftype](ftype, fmod)
 
 
 def format_type(value):
     try:
-        return FORMAT_MAP[type(value)](value) + (1,)
+        return BaseType._type[type(value)](value) + (1,)
     except KeyError:
         value = str(value).encode('utf-8')
         return (0, value, 0, 0)
 
 
-def register_format(typ):
-    def _inner(func):
-        FORMAT_MAP[typ] = func
-        return func
-    return _inner
+class BaseTypeMeta(type):
+    def __new__(cls, name, bases, namespace, **kwds)
+        new_cls = super().__new__(cls, name, bases, namespace, **kwds)
+        if new_cls.oid is not None:
+            cls._oid[new_cls.oid] = new_cls
+        if new_cls.klass is not None:
+            cls._type[new_cls.klass] = new_cls
+        return new_cls
 
 
-def register_parser(oid):
-    def _inner(func):
-        PARSER_MAP[oid] = func
-        return func
-    return _inner
+class BaseType(metaclass=BaseTypeMeta):
+    _oid = {}
+    _type = {}
+
+    oid = None
+    klass = None
+    fmt = ''
+
+    def __init__(self, ftype, fmod):
+        self.size = struct.calcsize(self.fmt)
+        self.ftype = ftype
+        self.fmod = fmod
+
+    def parse(self, value, size):
+        assert size == self.size
+        return struct.unpack(self.fmt, value[:size])[0]
+
+    @staticmethod
+    def format(value):
+        return (self.oid, struct.pack(self.fmt, value), self.size)
 
 
-@register_format(type(None))
-def format_none(value):
-    return (0, None, 0,)
+class NoneType(BaseType):
+    klass = type(None)
+
+    @staticmethod
+    def format(value):
+        return (0, None, 0,)
 
 
-@register_parser(16)
-def parse_bool(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('?', value[:1])[0]
+class BoolType(BaseType):
+    fmt = '?'
+
+    oid = 16
+    klass = bool
 
 
-@register_format(bool)
-def format_bool(value):
-    return (16, struct.pack('?', value), 1)
+class BinaryType(BaseType):
+    oid = 17
+    klass = bytes
+
+    def parse(self, value, size):
+        self.size = size
+        return self.value[:size]
+
+    @staticmethod
+    def format(value):
+        return (17, c_char_p(value), len(value))
 
 
-@register_parser(17)
-def parse_bytea(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen]
+class CharType(BaseType):
+    fmt = 'c'
+
+    def parse(self, value, size):
+        self.size = size
+        return value[:size].decode('utf-8')
 
 
-@register_format(bytes)
-def format_bytea(value):
-    return (17, c_char_p(value), len(value))
+
+class ShortIntType(BaseType):
+    oid = 21
+    fmt = '!h'
+
+class IntType(BaseType):
+    oid = 23
+    fmt = '!i'
 
 
-@register_parser(18)
-def parse_char(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:1].decode('utf-8')
+class LongType(BaseType):
+    oid = 20
+    fmt = '!q'
+    klass = int
+
+    @staticmethod
+    def format(value):
+        bits = value.bit_length()
+        if bits < 16:
+            return (21, struct.pack('!h', value), 2)
+        elif bits < 32:
+            return (23, struct.pack('!i', value), 4)
+        else:
+            return (20, struct.pack('!q', value), 8)
 
 
-@register_parser(20)
-@register_parser(21)
-@register_parser(23)
-@register_parser(26)
-def parse_integer(value, vlen, ftype=None, fmod=None):
-    if vlen == -1:
-        return None
-    if vlen == 0:
-        return None
-    if vlen == 2:
-        return struct.unpack('!h', value[:vlen])[0]
-    if vlen == 4:
-        return struct.unpack('!i', value[:vlen])[0]
-    if vlen == 8:
-        return struct.unpack("!q", value[:vlen])[0]
-    raise ValueError('Unexpected length for INT type: %r' % vlen)
+class OidType(BaseType):
+    oid = 26
+    fmt = '!q'
 
 
-@register_format(int)
-def format_integer(value):
-    bits = value.bit_length()
-    if bits < 16:
-        return (21, struct.pack('!h', value), 2)
-    elif bits < 32:
-        return (23, struct.pack('!i', value), 4)
-    else:
-        return (20, struct.pack('!q', value), 8)
+class DateType(BaseType):
+    oid = 1082
+    klass = datetime.date
+    fmt = '!i'
+
+    def parse(self, value, size):
+        val = struct.unpack(self.fmt, value[:size])[0]
+        return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
+
+    @staticmethod
+    def format(value):
+        val = (value - datetime.date(2000, 1, 1)).days
+        return (1082, struct.pack('!i', val), struct.calcsize('!i'))
 
 
-@register_parser(1082)
-def parse_date(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    val = struct.unpack('!i', value[:vlen])[0]
-    return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
+class TimestampTzType(BaseType):
+    oid = 1184
+    klass = datetime.datetime
+    fmt = '!q'
+
+    def parse(self, value, size):
+        val = struct.unpack(self.fmt, value[:size])[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+
+    def format(value):
+        if value.tzinfo:
+            val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+        else:
+            val = (value - datetime.datetime(2000, 1, 1))
+        val = int(val.total_seconds() * 1000000)
+        return (1184, struct.pack(self.fmt, val), self.size)
 
 
-@register_format(datetime.date)
-def format_date(value):
-    val = (value - datetime.date(2000, 1, 1)).days
-    return (1082, struct.pack('!i', val), struct.calcsize('!i'))
 
-# @register_parser(1114)
-# def parse_timestamp(value, vlen, ftype=None, fmod=None):
-#     val = struct.unpack('!q', value[:8])[0]
-#     return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+class StringType(BaseType):
+    oid = 25
+
+    def parse(self, value, size):
+        self.size = size
+        return value[:size].decode('utf-8')
 
 
-@register_parser(1184)
-def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    val = struct.unpack('!q', value[:vlen])[0]
-    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+class BlankPaddedString(StringType):
+    '''
+    char(length), blank-padded string, fixed storage length
+    '''
+    oid = 1042
 
 
-@register_format(datetime.datetime)
-def format_timestamp(value):
-    if value.tzinfo:
-        val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
-    else:
-        val = (value - datetime.datetime(2000, 1, 1))
-    val = int(val.total_seconds() * 1000000)
-    return (1184, struct.pack('!q', val), 8)
-
-
-@register_parser(25)
-@register_parser(1009)
-@register_parser(1042)
-@register_parser(1043)
-def parse_string(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return ''
-    return cast(value, c_char_p).value.decode('utf-8')
+class VarCharType(StringType):
+    oid = 1043
 
 
 # Django often passes strings when it means other types, and assumes the SQL
@@ -250,175 +272,176 @@ def parse_string(value, vlen, ftype=None, fmod=None):
 #     return (1042, struct.pack('%ds' % length, value), length,)
 
 
-@register_parser(650)
-@register_parser(869)
-def parse_ipaddr(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:vlen])
-    if nb == 4:
-        if ip_bits:
-            return IPv4Network((value[4:4+nb], ip_bits))
-        return IPv4Address(value[4:4+nb])
-    elif nb == 16:
-        if ip_bits:
-            return IPv6Network((value[4:4+nb], ip_bits))
-        return IPv6Address(value[4:4+nb])
-    return value
+class IPv4AddressType(BaseType):
+    '''
+    network IP address/netmask, network address
+    '''
+    oid = 650
+    klass = IPv4Address
+
+    def parse(self, value, size):
+        self.size = size
+        ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
+        if nb == 4:
+            if ip_bits:
+                return IPv4Network((value[4:4+nb], ip_bits))
+            return IPv4Address(value[4:4+nb])
+        elif nb == 16:
+            if ip_bits:
+                return IPv6Network((value[4:4+nb], ip_bits))
+            return IPv6Address(value[4:4+nb])
 
 
-@register_parser(3802)
-def parse_jsonb(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    if value[0] == b'\x01':
-        return json.loads(value[1:vlen].decode('utf-8'))
-    return value[:vlen].decode('utf-8')
+class IPv4NetworkType(IPv4AddressType):
+    oid = None
+    klass = IPv4Network
 
 
-@register_parser(700)
-def parse_float(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('!f', value[:vlen])[0]
+class IPv6AddressType(IPv4AddressType):
+    oid = None
+    klass = IPv6Address
 
 
-@register_parser(701)
-def parse_double(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('!d', value[:vlen])[0]
+class IPv6NetworkType(IPv4AddressType):
+    oid = None
+    klass = IPv6Network
 
 
-@register_format(float)
-def format_double(value):
-    return (701, struct.pack('!d', value), struct.calcsize('!d'))
+class IPAddressType(IPv4AddressType):
+    oid = 869
 
 
-@register_parser(19)
-def parse_namedata(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen].decode('utf-8')
+class JsonbType(BaseType):
+    oid = 3802
+
+    def parse(self, value, size):
+        self.size = size
+        if value[0] == b'\x01':
+            return json.loads(value[1:vlen].decode('utf-8'))
+        return value[:vlen].decode('utf-8')
 
 
-@register_parser(2950)
-def parse_uuid(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return uuid.UUID(bytes=value[:vlen])
+class FloatType(BaseType):
+    oid = 700
+    fmt = '!f'
 
 
-@register_format(uuid.UUID)
-def format_uuid(value):
-    return (2950, value.bytes, 16)
+class DoubleType(BaseType):
+    oid = 701
+    klass = float
+    fmt = '!d'
 
 
-@register_parser(1700)
-def parse_numeric(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    hsize = struct.calcsize('!HhHH')
-    ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
-    if sign == 0xc000:
-        return Decimal('NaN')
-    desc = '!%dH' % ndigits
-    digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
-    n = '-' if sign else ''
-    # numeric has a form of compression where if the remaining digits are 0,
-    # they are not sent, even if we haven't reached the decimal point yet!
-    while weight >= len(digits):
-        digits = digits + (0,)
+class NameDataType(BaseType):
+    oid = 19
 
-    for idx, digit in enumerate(digits):
-        n += '{:04d}'.format(digit)
-        if idx == weight:
-            n += '.'
-    n = Decimal(n)
-    return n
+    def parse(self, value, size):
+        return value[:size].decode('utf-8')
 
 
-@register_format(Decimal)
-def format_numeric(value):
-    sign, digits, exponent = value.as_tuple()
-    dscale = abs(exponent)
-    if exponent:
-        frac = digits[exponent:]
-        digits = digits[:exponent]
-    else:
-        frac = []
-    vals = []
-    while digits:
-        vals.append(int(''.join(map(str, digits[:4]))))
-        digits = digits[4:]
-    weight = len(vals)
-    while frac:
-        d = (frac[:4] + ('0',) * 4)[:4]
-        frac = frac[4:]
-        vals.append(int(''.join(map(str, d))))
-    fmt = '!HhHH%dH' % len(vals)
+class UUIDType(BaseType):
+    oid = 2950
+    klass = uuid.UUID
 
-    val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
-    return (1700, val, struct.calcsize(fmt))
+    def parse(self, value, size):
+        self.size = size
+        return uuid.UUID(bytes=value[:vlen])
 
-# @register_parser(2277)
-def parse_anyarray(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    offs = 0
-    size = struct.calcsize('!iii')
-    ndim, flags, etype = struct.unpack('!iii', value[:size])
-    offs += size
-    size = struct.calcsize('!ii')
-    dim_info = []
-    for _ in range(ndim):
-        dim_info.append(
-            struct.unpack('!ii', value[offs:offs+size])
-        )
-        offs += size
+    @staticmethod
+    def format(value):
+        return (self.oid, value.bytes, 16)
 
 
-@register_parser(1003)
-def parse_name(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return parse_anyarray(value, vlen, ftype, fmod)
+class NumericType(BaseType):
+    oid = 1700
+    klass = Decimal
+
+    def parse(self, value, size):
+        self.size = size
+        hsize = struct.calcsize('!HhHH')
+        ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
+        if sign == 0xc000:
+            return Decimal('NaN')
+        desc = '!%dH' % ndigits
+        digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
+        n = '-' if sign else ''
+        # numeric has a form of compression where if the remaining digits are 0,
+        # they are not sent, even if we haven't reached the decimal point yet!
+        while weight >= len(digits):
+            digits = digits + (0,)
+
+        for idx, digit in enumerate(digits):
+            n += '{:04d}'.format(digit)
+            if idx == weight:
+                n += '.'
+        n = Decimal(n)
+        return n
+
+    @staticmethod
+    def format(value):
+        sign, digits, exponent = value.as_tuple()
+        dscale = abs(exponent)
+        if exponent:
+            frac = digits[exponent:]
+            digits = digits[:exponent]
+        else:
+            frac = []
+        vals = []
+        while digits:
+            vals.append(int(''.join(map(str, digits[:4]))))
+            digits = digits[4:]
+        weight = len(vals)
+        while frac:
+            d = (frac[:4] + ('0',) * 4)[:4]
+            frac = frac[4:]
+            vals.append(int(''.join(map(str, d))))
+        fmt = '!HhHH%dH' % len(vals)
+
+        val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
+        return (self.oid, val, struct.calcsize(fmt))
 
 
-@register_parser(1186)
-def parse_interval(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    time_us, days, months = struct.unpack('!qii', value[:vlen])
-    val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
-    return val
+class IntervalType(BaseType):
+    oid = 1186
+    klass = datetime.timedelta
+    fmt = '!qii'
+
+    def parse(value, size):
+        time_us, days, months = struct.unpack(self.fmt, value[:size])
+        val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
+        return val
+
+    @staticmethod
+    def format(value):
+        months, days = divmod(value.days, 30)
+        usec = value.seconds * 1000000 + value.microseconds
+        return (self.oid, struct.pack(self.fmt, usec, days, months), self.size)
 
 
-@register_parser(1083)
-def parse_time_of_day(value, vlen, ftype=None, fmod=None):
+class TimeOfDayType(BaseType):
     '''
     64bit int of uSec since midnight.
     '''
-    if not vlen:
-        return None
-    time_us = struct.unpack('!q', value[:vlen])[0]
-    val, microsecond = divmod(time_us, 1000000)
-    val, second = divmod(val, 60)
-    hour, minute = divmod(val, 60)
-    return datetime.time(hour, minute, second, microsecond)
+    oid = 1083
+    klass = datetime.time
+    fmt = '!q'
+
+    def parse(self, value, vlen):
+        time_us = struct.unpack(self.fmt, value[:size])[0]
+        val, microsecond = divmod(time_us, 1000000)
+        val, second = divmod(val, 60)
+        hour, minute = divmod(val, 60)
+        return datetime.time(hour, minute, second, microsecond)
+
+    @staticmethod
+    def format(value):
+        val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
+        return (self.oid, struct.pack(self.fmt, val), self.size)
 
 
-@register_format(datetime.time)
-def format_time_of_day(value):
-    '''
-    64bit int of uSec since midnight.
-    '''
-    val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
-    return (1083, struct.pack('!q', val), struct.calcsize('!q'))
+class UnknownType(BaseType):
+    oid = 705
 
-
-@register_parser(705)
-def parse_unknown(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen].decode('utf-8')
+    def parse(self, value, vlen):
+        self.size = size
+        return value[:size].decode('utf-8')
