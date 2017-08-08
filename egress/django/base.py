@@ -520,6 +520,16 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'iendswith': 'LIKE UPPER(%s)',
     }
 
+    pattern_esc = r"REPLACE(REPLACE(REPLACE({}, '\', '\\'), '%%', '\%%'), '_', '\_')"
+    pattern_ops = {
+        'contains': "LIKE '%%' || {} || '%%'",
+        'icontains': "LIKE '%%' || UPPER({}) || '%%'",
+        'startswith': "LIKE {} || '%%'",
+        'istartswith': "LIKE UPPER({}) || '%%'",
+        'endswith': "LIKE '%%' || {}",
+        'iendswith': "LIKE '%%' || UPPER({})",
+    }
+
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
         with connection.cursor() as cur:
