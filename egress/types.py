@@ -105,7 +105,7 @@ def infer_parser(ftype, fmod):
 
 def format_type(value):
     try:
-        return BaseType._type[type(value)](value) + (1,)
+        return BaseType._type[type(value)].format(value) + (1,)
     except KeyError:
         value = str(value).encode('utf-8')
         return (0, value, 0, 0)
@@ -121,6 +121,11 @@ class BaseTypeMeta(type):
         return new_cls
 
 
+class Size:
+    def __get__(self, instance, klass):
+        return struct.calcsize(klass.fmt)
+
+
 class BaseType(metaclass=BaseTypeMeta):
     _oid = {}
     _type = {}
@@ -129,18 +134,19 @@ class BaseType(metaclass=BaseTypeMeta):
     klass = None
     fmt = ''
 
+    size = Size()
+
     def __init__(self, ftype, fmod):
-        self.size = struct.calcsize(self.fmt)
         self.ftype = ftype
         self.fmod = fmod
 
     def parse(self, value, size):
-        assert size == self.size
+        assert size == self.size, 'Mismatching size: %r %r <=> %r' % (self, size, self.size)
         return struct.unpack(self.fmt, value[:size])[0]
 
-    @staticmethod
-    def format(value):
-        return (self.oid, struct.pack(self.fmt, value), self.size)
+    @classmethod
+    def format(cls, value):
+        return (cls.oid, struct.pack(cls.fmt, value), cls.size)
 
 
 class NoneType(BaseType):
@@ -220,10 +226,10 @@ class DateType(BaseType):
         val = struct.unpack(self.fmt, value[:size])[0]
         return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
-    @staticmethod
-    def format(value):
+    @classmethod
+    def format(cls, value):
         val = (value - datetime.date(2000, 1, 1)).days
-        return (1082, struct.pack('!i', val), struct.calcsize('!i'))
+        return (1082, struct.pack(cls.fmt, val), cls.size)
 
 
 class TimestampTzType(BaseType):
@@ -235,13 +241,14 @@ class TimestampTzType(BaseType):
         val = struct.unpack(self.fmt, value[:size])[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
-    def format(value):
+    @classmethod
+    def format(cls, value):
         if value.tzinfo:
             val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
         else:
             val = (value - datetime.datetime(2000, 1, 1))
         val = int(val.total_seconds() * 1000000)
-        return (1184, struct.pack(self.fmt, val), self.size)
+        return (1184, struct.pack(cls.fmt, val), cls.size)
 
 
 
@@ -348,9 +355,9 @@ class UUIDType(BaseType):
         self.size = size
         return uuid.UUID(bytes=value[:vlen])
 
-    @staticmethod
-    def format(value):
-        return (self.oid, value.bytes, 16)
+    @classmethod
+    def format(cls, value):
+        return (cls.oid, value.bytes, 16)
 
 
 class NumericType(BaseType):
@@ -378,8 +385,8 @@ class NumericType(BaseType):
         n = Decimal(n)
         return n
 
-    @staticmethod
-    def format(value):
+    @classmethod
+    def format(cls, value):
         sign, digits, exponent = value.as_tuple()
         dscale = abs(exponent)
         if exponent:
@@ -399,7 +406,7 @@ class NumericType(BaseType):
         fmt = '!HhHH%dH' % len(vals)
 
         val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
-        return (self.oid, val, struct.calcsize(fmt))
+        return (cls.oid, val, cls.size)
 
 
 class IntervalType(BaseType):
@@ -412,11 +419,11 @@ class IntervalType(BaseType):
         val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
         return val
 
-    @staticmethod
-    def format(value):
+    @classmethod
+    def format(cls, value):
         months, days = divmod(value.days, 30)
         usec = value.seconds * 1000000 + value.microseconds
-        return (self.oid, struct.pack(self.fmt, usec, days, months), self.size)
+        return (cls.oid, struct.pack(cls.fmt, usec, days, months), cls.size)
 
 
 class TimeOfDayType(BaseType):
@@ -434,10 +441,10 @@ class TimeOfDayType(BaseType):
         hour, minute = divmod(val, 60)
         return datetime.time(hour, minute, second, microsecond)
 
-    @staticmethod
-    def format(value):
+    @classmethod
+    def format(cls, value):
         val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
-        return (self.oid, struct.pack(self.fmt, val), self.size)
+        return (cls.oid, struct.pack(cls.fmt, val), cls.size)
 
 
 class UnknownType(BaseType):
