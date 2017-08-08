@@ -1,9 +1,11 @@
+import re
 
 from collections import namedtuple
 from ctypes import c_char_p, c_int, c_uint
 
 from . import libpq, types
 
+PARAM_RE = re.compile('\$\d+')
 
 Description = namedtuple('Description', (
     'name',
@@ -201,11 +203,17 @@ class Cursor(object):
                 ctr += 1
             operation = operation.replace('%%', '%')
 
+        param_count = len(PARAM_RE.findall(operation))
+
         if isinstance(operation, str):
             operation = operation.encode('utf-8')
 
         if parameters:
             pcount = len(parameters)
+            if pcount != param_count:
+                raise InterfaceError('Incorrect number of parameters: %d (exptedted %d)' % (
+                    pcount, param_count,
+                ))
 
             paramTypes = (c_uint * pcount)()
             paramValues = (c_char_p * pcount)()
