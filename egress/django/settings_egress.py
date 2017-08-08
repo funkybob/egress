@@ -19,7 +19,7 @@ DATABASES = {
     },
     'other': {
         'ENGINE': 'egress.django',
-        'NAME': 'django_test',
+        'NAME': 'django_other',
     }
 }
 
