@@ -190,6 +190,8 @@ def format_integer(value):
 
 @register_parser(1082)
 def parse_date(value, vlen, ftype=None, fmod=None):
+    if not vlen:
+        return None
     val = struct.unpack('!i', value[:vlen])[0]
     return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
@@ -229,6 +231,8 @@ def parse_string(value, vlen, ftype=None, fmod=None):
     return cast(value, c_char_p).value.decode('utf-8')
 
 
+# Django often passes strings when it means other types, and assumes the SQL
+# parsing will figure it out :/
 # @register_format(str)
 # def format_string(value):
 #     value = value.encode('utf-8')
@@ -271,12 +275,6 @@ def parse_double(value, vlen, ftype=None, fmod=None):
 @register_format(float)
 def format_double(value):
     return (701, struct.pack('!d', value), struct.calcsize('!d'))
-
-
-# @register_parser(702)
-# def parse_time(value, vlen, ftype=None, fmod=None):
-#     val = struct.unpack('!i', value[:vlen])[0]
-#     return datetime.time.fromtimestamp(val)
 
 
 @register_parser(19)
