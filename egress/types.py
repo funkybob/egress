@@ -136,12 +136,14 @@ class BaseType(metaclass=BaseTypeMeta):
 
     size = Size()
 
-    def __init__(self, ftype, fmod):
+    def __init__(self, ftype, fmod=-1):
         self.ftype = ftype
         self.fmod = fmod
 
     def parse(self, value, size):
-        assert size == self.size, 'Mismatching size: %r %r <=> %r' % (self, size, self.size)
+        #assert size == self.size, 'Mismatching size: %r %r <=> %r' % (self, size, self.size)
+        if size == 0:
+            return None
         return struct.unpack(self.fmt, value[:size])[0]
 
     @classmethod
@@ -238,8 +240,11 @@ class TimestampTzType(BaseType):
     fmt = '!q'
 
     def parse(self, value, size):
+        if size == 0:
+            return None
         val = struct.unpack(self.fmt, value[:size])[0]
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        # return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
     @classmethod
     def format(cls, value):
