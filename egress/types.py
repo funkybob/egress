@@ -236,7 +236,7 @@ def format_timestamp(value):
 @register_parser(1043)
 def parse_string(value, vlen, ftype=None, fmod=None):
     if not vlen:
-        return None
+        return ''
     return cast(value, c_char_p).value.decode('utf-8')
 
 
