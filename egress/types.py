@@ -108,8 +108,6 @@ def infer_parser(ftype, fmod):
 
 
 def format_type(value):
-    if isinstance(value, Decimal):
-        value = float(value)
     try:
         return FORMAT_MAP[type(value)](value) + (1,)
     except KeyError:
@@ -190,34 +188,27 @@ def format_integer(value):
         return (20, struct.pack('!q', value), 8)
 
 
-def parse_uint(value, vlen, ftype=None, fmod=None):
-    if vlen == 0:
-        return 0
-    if vlen == 2:
-        return struct.unpack('!H', value[:vlen])[0]
-    if vlen == 4:
-        return struct.unpack('!I', value[:vlen])[0]
-    if vlen == 8:
-        return struct.unpack("!Q", value[:vlen])[0]
-    raise ValueError('Unexpected length for INT type: %r' % vlen)
-
-
 @register_parser(1082)
 def parse_date(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!i', value[:vlen])[0]
-    return (datetime.datetime(2000, 1, 1) + datetime.timedelta(days=val)).date()
+    return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
 
-@register_parser(1114)
-def parse_timestamp(value, vlen, ftype=None, fmod=None):
-    val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+@register_format(datetime.date)
+def format_date(value):
+    val = (value - datetime.date(2000, 1, 1)).days
+    return (1082, struct.pack('!i', val), struct.calcsize('!i'))
+
+# @register_parser(1114)
+# def parse_timestamp(value, vlen, ftype=None, fmod=None):
+#     val = struct.unpack('!q', value[:8])[0]
+#     return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
 @register_parser(1184)
 def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
     val = struct.unpack('!q', value[:8])[0]
-    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+    return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
 
 @register_format(datetime.datetime)
@@ -281,9 +272,10 @@ def format_double(value):
     return (701, struct.pack('!d', value), struct.calcsize('!d'))
 
 
-@register_parser(702)
-def parse_time(value, vlen, ftype=None, fmod=None):
-    return datetime.time.fromtimestamp(struct.unpack('!i', value[:vlen])[0])
+# @register_parser(702)
+# def parse_time(value, vlen, ftype=None, fmod=None):
+#     val = struct.unpack('!i', value[:vlen])[0]
+#     return datetime.time.fromtimestamp(val)
 
 
 @register_parser(19)
@@ -321,6 +313,29 @@ def parse_numeric(value, vlen, ftype=None, fmod=None):
     return n
 
 
+@register_format(Decimal)
+def format_numeric(value):
+    sign, digits, exponent = value.as_tuple()
+    dscale = abs(exponent)
+    if exponent:
+        frac = digits[exponent:]
+        digits = digits[:exponent]
+    else:
+        frac = []
+    vals = []
+    while digits:
+        vals.append(int(''.join(map(str, digits[:4]))))
+        digits = digits[4:]
+    weight = len(vals)
+    while frac:
+        d = (frac[:4] + ('0',) * 4)[:4]
+        frac = frac[4:]
+        vals.append(int(''.join(map(str, d))))
+    fmt = '!HhHH%dH' % len(vals)
+
+    val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
+    return (1700, val, struct.calcsize(fmt))
+
 # @register_parser(2277)
 def parse_anyarray(value, vlen, ftype=None, fmod=None):
     offs = 0
@@ -353,7 +368,7 @@ def parse_interval(value, vlen, ftype=None, fmod=None):
 @register_parser(1083)
 def parse_time_of_day(value, vlen, ftype=None, fmod=None):
     time_us = struct.unpack('!q', value[:vlen])[0]
-    return datetime.datetime.fromtimestamp(time_us / 1000000).time()
+    return datetime.datetime.utcfromtimestamp(time_us / 1000000).time()
 
 
 @register_parser(datetime.time)
