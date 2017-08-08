@@ -112,12 +112,12 @@ def format_type(value):
 
 
 class BaseTypeMeta(type):
-    def __new__(cls, name, bases, namespace, **kwds)
+    def __new__(cls, name, bases, namespace, **kwds):
         new_cls = super().__new__(cls, name, bases, namespace, **kwds)
         if new_cls.oid is not None:
-            cls._oid[new_cls.oid] = new_cls
+            new_cls._oid[new_cls.oid] = new_cls
         if new_cls.klass is not None:
-            cls._type[new_cls.klass] = new_cls
+            new_cls._type[new_cls.klass] = new_cls
         return new_cls
 
 
@@ -172,6 +172,7 @@ class BinaryType(BaseType):
 
 
 class CharType(BaseType):
+    oid = 18
     fmt = 'c'
 
     def parse(self, value, size):
