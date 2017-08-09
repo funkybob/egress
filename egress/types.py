@@ -285,6 +285,8 @@ class UnknownType(BaseType):
 
     @staticmethod
     def parse(value, size):
+        if not size:
+            return None
         return value[:size].decode('utf-8')
 
 
@@ -348,6 +350,8 @@ class DateType(BaseType):
 
     @classmethod
     def parse(cls, value, size):
+        if not size:
+            return None
         val = struct.unpack(cls.fmt, value[:size])[0]
         return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
@@ -409,7 +413,7 @@ class TimestampTzType(BaseType):
         if size == 0:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
-        # return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
         return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
     @classmethod
