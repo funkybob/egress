@@ -386,6 +386,8 @@ class IntervalType(BaseType):
 
     @classmethod
     def parse(cls, value, size):
+        if not size:
+            return None
         time_us, days, months = struct.unpack(cls.fmt, value[:size])
         val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
         return val
@@ -426,6 +428,8 @@ class NumericType(BaseType):
 
     @staticmethod
     def parse(value, size):
+        if not size:
+            return None
         hsize = struct.calcsize('!HhHH')
         ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
         if sign == 0xc000:
@@ -433,7 +437,7 @@ class NumericType(BaseType):
         desc = '!%dH' % ndigits
         digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
         n = '-' if sign else ''
-        # numeric has a form of compression where if the remaining digits are 0,
+        # numeric has a form of compression where if the remaining digits are 0
         # they are not sent, even if we haven't reached the decimal point yet!
         while weight >= len(digits):
             digits = digits + (0,)
@@ -464,9 +468,9 @@ class NumericType(BaseType):
             frac = frac[4:]
             vals.append(int(''.join(map(str, d))))
         fmt = '!HhHH%dH' % len(vals)
-
+        size = struct.calcsize(fmt)
         val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
-        return (cls.oid, val, cls.size)
+        return (cls.oid, val, size)
 
 
 class UUIDType(BaseType):
