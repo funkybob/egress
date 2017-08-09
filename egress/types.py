@@ -296,6 +296,8 @@ class ArrayType(BaseType):
 
     @staticmethod
     def parse(value, size):
+        if not size:
+            return []
         ndim, flags, element_type = struct.unpack('!iii', value[:12])
 
         dim_info = []
@@ -309,15 +311,14 @@ class ArrayType(BaseType):
         assert ndim == 1, 'Only single dimension arrays handled currently!'
         cast = infer_parser(element_type)
         val = []
-        for x in range(dim_info[0][1], dim_info[0][0]):
-            size = struct.unpack('!i', value[offs:offs+4])[0]
+        for x in range(dim_info[0][1], dim_info[0][0]+1):
+            el_size = struct.unpack('!i', value[offs:offs+4])[0]
             offs += 4
-            print(element_type, offs, size)
-            if size == -1:
+            if el_size == -1:
                 val.append(None)
                 continue
-            val.append(cast.parse(value[offs:offs+size], size))
-            offs += size
+            val.append(cast.parse(value[offs:offs+el_size], size))
+            offs += el_size
         return val
 
 
