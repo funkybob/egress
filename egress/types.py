@@ -6,7 +6,6 @@ import struct
 import uuid
 
 from decimal import Decimal
-from functools import partial
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 
 '''
@@ -96,11 +95,11 @@ DATETIME = DBAPITypeObject()
 ROWID = DBAPITypeObject()
 
 
-def infer_parser(ftype, fmod):
+def infer_parser(ftype, fmod=-1):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    return BaseType._oid[ftype](ftype, fmod)
+    return BaseType._oid[ftype]
 
 
 def format_type(value):
@@ -122,6 +121,9 @@ class BaseTypeMeta(type):
 
 
 class Size:
+    '''
+    Calculate the size from the fmt.
+    '''
     def __get__(self, instance, klass):
         return struct.calcsize(klass.fmt)
 
@@ -136,15 +138,11 @@ class BaseType(metaclass=BaseTypeMeta):
 
     size = Size()
 
-    def __init__(self, ftype, fmod=-1):
-        self.ftype = ftype
-        self.fmod = fmod
-
-    def parse(self, value, size):
-        #assert size == self.size, 'Mismatching size: %r %r <=> %r' % (self, size, self.size)
+    @classmethod
+    def parse(cls, value, size):
         if size == 0:
             return None
-        return struct.unpack(self.fmt, value[:size])[0]
+        return struct.unpack(cls.fmt, value[:size])[0]
 
     @classmethod
     def format(cls, value):
@@ -170,9 +168,9 @@ class BinaryType(BaseType):
     oid = 17
     klass = bytes
 
-    def parse(self, value, size):
-        self.size = size
-        return self.value[:size]
+    @staticmethod
+    def parse(value, size):
+        return value[:size]
 
     @staticmethod
     def format(value):
@@ -183,19 +181,19 @@ class CharType(BaseType):
     oid = 18
     fmt = 'c'
 
-    def parse(self, value, size):
-        self.size = size
+    @staticmethod
+    def parse(value, size):
         return value[:size].decode('utf-8')
 
 
+class NameDataType(BaseType):
+    oid = 19
 
-class ShortIntType(BaseType):
-    oid = 21
-    fmt = '!h'
-
-class IntType(BaseType):
-    oid = 23
-    fmt = '!i'
+    @staticmethod
+    def parse(value, size):
+        if size == 0:
+            return None
+        return value[:size].decode('utf-8')
 
 
 class LongType(BaseType):
@@ -214,75 +212,34 @@ class LongType(BaseType):
             return (20, struct.pack('!q', value), 8)
 
 
-class OidType(BaseType):
-    oid = 26
-    fmt = '!q'
+class ShortIntType(BaseType):
+    oid = 21
+    fmt = '!h'
 
-
-class DateType(BaseType):
-    oid = 1082
-    klass = datetime.date
+class IntType(BaseType):
+    oid = 23
     fmt = '!i'
-
-    def parse(self, value, size):
-        val = struct.unpack(self.fmt, value[:size])[0]
-        return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
-
-    @classmethod
-    def format(cls, value):
-        val = (value - datetime.date(2000, 1, 1)).days
-        return (1082, struct.pack(cls.fmt, val), cls.size)
-
-
-class TimestampTzType(BaseType):
-    oid = 1184
-    klass = datetime.datetime
-    fmt = '!q'
-
-    def parse(self, value, size):
-        if size == 0:
-            return None
-        val = struct.unpack(self.fmt, value[:size])[0]
-        # return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
-        return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
-
-    @classmethod
-    def format(cls, value):
-        if value.tzinfo:
-            val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
-        else:
-            val = (value - datetime.datetime(2000, 1, 1))
-        val = int(val.total_seconds() * 1000000)
-        return (1184, struct.pack(cls.fmt, val), cls.size)
-
 
 
 class StringType(BaseType):
+    '''
+    Django often passes strings when it means other types, and assumes the SQL
+    parsing will figure it out :/
+    To deal with this, we don't define a formatter, and pass all string
+    arguments as "guess this" text.
+    '''
     oid = 25
 
-    def parse(self, value, size):
-        self.size = size
+    @staticmethod
+    def parse(value, size):
+        if not size:
+            return ''
         return value[:size].decode('utf-8')
 
 
-class BlankPaddedString(StringType):
-    '''
-    char(length), blank-padded string, fixed storage length
-    '''
-    oid = 1042
-
-
-class VarCharType(StringType):
-    oid = 1043
-
-
-# Django often passes strings when it means other types, and assumes the SQL
-# parsing will figure it out :/
-# @register_format(str)
-# def format_string(value):
-#     value = value.encode('utf-8')
-#     length = len(value)
-#     return (1042, struct.pack('%ds' % length, value), length,)
+class OidType(BaseType):
+    oid = 26
+    fmt = '!q'
 
 
 class IPv4AddressType(BaseType):
@@ -292,8 +249,8 @@ class IPv4AddressType(BaseType):
     oid = 650
     klass = IPv4Address
 
-    def parse(self, value, size):
-        self.size = size
+    @staticmethod
+    def parse(value, size):
         ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
         if nb == 4:
             if ip_bits:
@@ -320,20 +277,6 @@ class IPv6NetworkType(IPv4AddressType):
     klass = IPv6Network
 
 
-class IPAddressType(IPv4AddressType):
-    oid = 869
-
-
-class JsonbType(BaseType):
-    oid = 3802
-
-    def parse(self, value, size):
-        self.size = size
-        if value[0] == b'\x01':
-            return json.loads(value[1:vlen].decode('utf-8'))
-        return value[:vlen].decode('utf-8')
-
-
 class FloatType(BaseType):
     oid = 700
     fmt = '!f'
@@ -345,32 +288,151 @@ class DoubleType(BaseType):
     fmt = '!d'
 
 
-class NameDataType(BaseType):
-    oid = 19
+class UnknownType(BaseType):
+    oid = 705
 
-    def parse(self, value, size):
+    @staticmethod
+    def parse(value, size):
         return value[:size].decode('utf-8')
 
 
-class UUIDType(BaseType):
-    oid = 2950
-    klass = uuid.UUID
+class IPAddressType(IPv4AddressType):
+    oid = 869
 
-    def parse(self, value, size):
-        self.size = size
-        return uuid.UUID(bytes=value[:vlen])
+
+class ArrayType(BaseType):
+
+    @staticmethod
+    def parse(value, size):
+        ndim, flags, element_type = struct.unpack('!iii', value[:12])
+
+        dim_info = []
+        offs = 12
+        for dim in range(ndim):
+            dim_info.append(
+                struct.unpack('!ii', value[offs:offs+8])
+            )
+            offs += 8
+
+        assert ndim == 1, 'Only single dimension arrays handled currently!'
+        cast = infer_parser(element_type)
+        val = []
+        for x in range(dim_info[0][1], dim_info[0][0]):
+            size = struct.unpack('!i', value[offs:offs+4])[0]
+            offs += 4
+            print(element_type, offs, size)
+            if size == -1:
+                val.append(None)
+                continue
+            val.append(cast.parse(value[offs:offs+size], size))
+            offs += size
+        return val
+
+
+class NameArrayType(ArrayType):
+    oid = 1003
+
+
+class TextArray(ArrayType):
+    oid = 1009
+
+
+class BlankPaddedString(StringType):
+    '''
+    char(length), blank-padded string, fixed storage length
+    '''
+    oid = 1042
+
+
+class VarCharType(StringType):
+    oid = 1043
+
+
+class DateType(BaseType):
+    oid = 1082
+    klass = datetime.date
+    fmt = '!i'
+
+    @classmethod
+    def parse(cls, value, size):
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
     @classmethod
     def format(cls, value):
-        return (cls.oid, value.bytes, 16)
+        val = (value - datetime.date(2000, 1, 1)).days
+        return (1082, struct.pack(cls.fmt, val), cls.size)
+
+
+class TimeOfDayType(BaseType):
+    '''
+    64bit int of uSec since midnight.
+    '''
+    oid = 1083
+    klass = datetime.time
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size):
+        time_us = struct.unpack(cls.fmt, value[:size])[0]
+        val, microsecond = divmod(time_us, 1000000)
+        val, second = divmod(val, 60)
+        hour, minute = divmod(val, 60)
+        return datetime.time(hour, minute, second, microsecond)
+
+    @classmethod
+    def format(cls, value):
+        val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
+        return (cls.oid, struct.pack(cls.fmt, val), cls.size)
+
+
+class IntervalType(BaseType):
+    oid = 1186
+    klass = datetime.timedelta
+    fmt = '!qii'
+
+    @classmethod
+    def parse(cls, value, size):
+        time_us, days, months = struct.unpack(cls.fmt, value[:size])
+        val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
+        return val
+
+    @classmethod
+    def format(cls, value):
+        months, days = divmod(value.days, 30)
+        usec = value.seconds * 1000000 + value.microseconds
+        return (cls.oid, struct.pack(cls.fmt, usec, days, months), cls.size)
+
+
+class TimestampTzType(BaseType):
+    oid = 1184
+    klass = datetime.datetime
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size):
+        if size == 0:
+            return None
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        # return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+
+    @classmethod
+    def format(cls, value):
+        if value.tzinfo:
+            val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+        else:
+            val = (value - datetime.datetime(2000, 1, 1))
+        val = int(val.total_seconds() * 1000000)
+        return (1184, struct.pack(cls.fmt, val), cls.size)
 
 
 class NumericType(BaseType):
     oid = 1700
     klass = Decimal
 
-    def parse(self, value, size):
-        self.size = size
+    @staticmethod
+    def parse(value, size):
         hsize = struct.calcsize('!HhHH')
         ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
         if sign == 0xc000:
@@ -414,47 +476,24 @@ class NumericType(BaseType):
         return (cls.oid, val, cls.size)
 
 
-class IntervalType(BaseType):
-    oid = 1186
-    klass = datetime.timedelta
-    fmt = '!qii'
+class UUIDType(BaseType):
+    oid = 2950
+    klass = uuid.UUID
 
+    @staticmethod
     def parse(value, size):
-        time_us, days, months = struct.unpack(self.fmt, value[:size])
-        val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
-        return val
+        return uuid.UUID(bytes=value[:size])
 
     @classmethod
     def format(cls, value):
-        months, days = divmod(value.days, 30)
-        usec = value.seconds * 1000000 + value.microseconds
-        return (cls.oid, struct.pack(cls.fmt, usec, days, months), cls.size)
+        return (cls.oid, value.bytes, 16)
 
 
-class TimeOfDayType(BaseType):
-    '''
-    64bit int of uSec since midnight.
-    '''
-    oid = 1083
-    klass = datetime.time
-    fmt = '!q'
+class JsonbType(BaseType):
+    oid = 3802
 
-    def parse(self, value, vlen):
-        time_us = struct.unpack(self.fmt, value[:size])[0]
-        val, microsecond = divmod(time_us, 1000000)
-        val, second = divmod(val, 60)
-        hour, minute = divmod(val, 60)
-        return datetime.time(hour, minute, second, microsecond)
-
-    @classmethod
-    def format(cls, value):
-        val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
-        return (cls.oid, struct.pack(cls.fmt, val), cls.size)
-
-
-class UnknownType(BaseType):
-    oid = 705
-
-    def parse(self, value, vlen):
-        self.size = size
-        return value[:size].decode('utf-8')
+    @staticmethod
+    def parse(value, size):
+        if value[0] == b'\x01':
+            return json.loads(value[1:size].decode('utf-8'))
+        return value[1:size].decode('utf-8')
