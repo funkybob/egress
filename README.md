@@ -1,6 +1,7 @@
 egress
 ======
 
+![Egress](egress.svg)
 Because the world needs another Python Postgress driver... :P
 
 But why??
