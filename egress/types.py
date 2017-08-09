@@ -112,20 +112,14 @@ def format_type(value):
 
 class BaseTypeMeta(type):
     def __new__(cls, name, bases, namespace, **kwds):
+        if 'fmt' in namespace and 'size' not in namespace:
+            namespace['size'] = struct.calcsize(namespace['fmt'])
         new_cls = super().__new__(cls, name, bases, namespace, **kwds)
         if new_cls.oid is not None:
             new_cls._oid[new_cls.oid] = new_cls
         if new_cls.klass is not None:
             new_cls._type[new_cls.klass] = new_cls
         return new_cls
-
-
-class Size:
-    '''
-    Calculate the size from the fmt.
-    '''
-    def __get__(self, instance, klass):
-        return struct.calcsize(klass.fmt)
 
 
 class BaseType(metaclass=BaseTypeMeta):
@@ -135,8 +129,6 @@ class BaseType(metaclass=BaseTypeMeta):
     oid = None
     klass = None
     fmt = ''
-
-    size = Size()
 
     @classmethod
     def parse(cls, value, size):
