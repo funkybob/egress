@@ -10,7 +10,7 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 from django.db.backends.postgresql.client import DatabaseClient
 # from django.db.backends.postgresql.creation import DatabaseCreation
-from django.db.backends.postgresql.features import DatabaseFeatures
+from django.db.backends.postgresql.features import DatabaseFeatures as _DatabaseFeatures
 from django.db.backends.postgresql.introspection import DatabaseIntrospection
 # from django.db.backends.postgresql.operations import DatabaseOperations
 # from django.db.backends.postgresql.schema import DatabaseSchemaEditor
@@ -18,6 +18,11 @@ from django.db.backends.postgresql.introspection import DatabaseIntrospection
 from django.conf import settings
 
 import egress as Database
+
+
+class DatabaseFeatures(_DatabaseFeatures):
+    supports_paramstyle_pyformat = False
+    supports_timezones = False
 
 
 class DatabaseCreation(BaseDatabaseCreation):
