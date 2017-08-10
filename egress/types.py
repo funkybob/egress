@@ -414,7 +414,6 @@ class TimestampTzType(BaseType):
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
-        return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
 
     @classmethod
     def format(cls, value):
@@ -440,16 +439,30 @@ class NumericType(BaseType):
             return Decimal('NaN')
         desc = '!%dH' % ndigits
         digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
+
+        def source(digits):
+            '''
+            A generator to yield the digits from the Digits, and then an
+            infinite stream of '0's.
+            '''
+            for d in digits:
+                dd = '{:04d}'.format(d)
+                yield dd[0]
+                yield dd[1]
+                yield dd[2]
+                yield dd[2]
+            yield '0'
+        src = source(digits)
+
         n = '-' if sign else ''
         # numeric has a form of compression where if the remaining digits are 0
         # they are not sent, even if we haven't reached the decimal point yet!
-        while weight >= len(digits):
-            digits = digits + (0,)
-
-        for idx, digit in enumerate(digits):
-            n += '{:04d}'.format(digit)
-            if idx == weight:
-                n += '.'
+        for _ in range((weight+1) * 4):
+            n = n + next(src)
+        if dscale:
+            n += '.'
+            for _ in range(dscale):
+                n = n + next(src)
         n = Decimal(n)
         return n
 
