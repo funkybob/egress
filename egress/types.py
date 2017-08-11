@@ -384,6 +384,18 @@ class TimeOfDayType(BaseType):
         return (cls.oid, struct.pack(cls.fmt, val), cls.size)
 
 
+class TimestampType(BaseType):
+    oid = 1114
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size):
+        if size == 0:
+            return None
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+
+
 class IntervalType(BaseType):
     oid = 1186
     klass = datetime.timedelta
