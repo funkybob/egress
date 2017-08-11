@@ -7,6 +7,7 @@ import uuid
 
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
+from itertools import repeat
 
 '''
 The module exports the following constructors and singletons:
@@ -447,11 +448,9 @@ class NumericType(BaseType):
             '''
             for d in digits:
                 dd = '{:04d}'.format(d)
-                yield dd[0]
-                yield dd[1]
-                yield dd[2]
-                yield dd[2]
-            yield '0'
+                yield from dd
+            yield from repeat('0')
+
         src = source(digits)
 
         n = '-' if sign else ''
