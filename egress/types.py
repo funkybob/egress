@@ -142,6 +142,36 @@ class BaseType(metaclass=BaseTypeMeta):
         return (cls.oid, struct.pack(cls.fmt, value), cls.size)
 
 
+class ArrayType(BaseType):
+
+    @staticmethod
+    def parse(value, size):
+        if not size:
+            return []
+        ndim, flags, element_type = struct.unpack('!iii', value[:12])
+
+        dim_info = []
+        offs = 12
+        for dim in range(ndim):
+            dim_info.append(
+                struct.unpack('!ii', value[offs:offs+8])
+            )
+            offs += 8
+
+        assert ndim == 1, 'Only single dimension arrays handled currently!'
+        cast = infer_parser(element_type)
+        val = []
+        for x in range(dim_info[0][1], dim_info[0][0]+1):
+            el_size = struct.unpack('!i', value[offs:offs+4])[0]
+            offs += 4
+            if el_size == -1:
+                val.append(None)
+                continue
+            val.append(cast.parse(value[offs:offs+el_size], size))
+            offs += el_size
+        return val
+
+
 class NoneType(BaseType):
     klass = type(None)
 
@@ -208,6 +238,11 @@ class LongType(BaseType):
 class ShortIntType(BaseType):
     oid = 21
     fmt = '!h'
+
+
+class Int2VectorType(ArrayType):
+    oid = 22
+
 
 class IntType(BaseType):
     oid = 23
@@ -293,36 +328,6 @@ class UnknownType(BaseType):
 
 class IPAddressType(IPv4AddressType):
     oid = 869
-
-
-class ArrayType(BaseType):
-
-    @staticmethod
-    def parse(value, size):
-        if not size:
-            return []
-        ndim, flags, element_type = struct.unpack('!iii', value[:12])
-
-        dim_info = []
-        offs = 12
-        for dim in range(ndim):
-            dim_info.append(
-                struct.unpack('!ii', value[offs:offs+8])
-            )
-            offs += 8
-
-        assert ndim == 1, 'Only single dimension arrays handled currently!'
-        cast = infer_parser(element_type)
-        val = []
-        for x in range(dim_info[0][1], dim_info[0][0]+1):
-            el_size = struct.unpack('!i', value[offs:offs+4])[0]
-            offs += 4
-            if el_size == -1:
-                val.append(None)
-                continue
-            val.append(cast.parse(value[offs:offs+el_size], size))
-            offs += el_size
-        return val
 
 
 class NameArrayType(ArrayType):
@@ -426,6 +431,7 @@ class TimestampTzType(BaseType):
         if size == 0:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
+        # return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
         return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
 
     @classmethod
