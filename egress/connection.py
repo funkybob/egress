@@ -91,6 +91,7 @@ class Connection(object):
         self._status = self.conn.status()
         self._autocommit = False
         self.pid = self.conn.pid()
+        self.tzinfo = None
 
     @property
     @requires_open

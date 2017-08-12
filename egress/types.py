@@ -132,7 +132,7 @@ class BaseType(metaclass=BaseTypeMeta):
     fmt = ''
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         if size == 0:
             return None
         return struct.unpack(cls.fmt, value[:size])[0]
@@ -145,7 +145,7 @@ class BaseType(metaclass=BaseTypeMeta):
 class ArrayType(BaseType):
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if not size:
             return []
         ndim, flags, element_type = struct.unpack('!iii', value[:12])
@@ -192,7 +192,7 @@ class BinaryType(BaseType):
     klass = bytes
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         return value[:size]
 
     @staticmethod
@@ -205,7 +205,7 @@ class CharType(BaseType):
     fmt = 'c'
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         return value[:size].decode('utf-8')
 
 
@@ -213,7 +213,7 @@ class NameDataType(BaseType):
     oid = 19
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if size == 0:
             return None
         return value[:size].decode('utf-8')
@@ -259,7 +259,7 @@ class StringType(BaseType):
     oid = 25
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if not size:
             return ''
         return value[:size].decode('utf-8')
@@ -278,7 +278,7 @@ class IPv4AddressType(BaseType):
     klass = IPv4Address
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
         if nb == 4:
             if ip_bits:
@@ -320,7 +320,7 @@ class UnknownType(BaseType):
     oid = 705
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if not size:
             return None
         return value[:size].decode('utf-8')
@@ -355,7 +355,7 @@ class DateType(BaseType):
     fmt = '!i'
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         if not size:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
@@ -376,12 +376,12 @@ class TimeOfDayType(BaseType):
     fmt = '!q'
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         time_us = struct.unpack(cls.fmt, value[:size])[0]
         val, microsecond = divmod(time_us, 1000000)
         val, second = divmod(val, 60)
         hour, minute = divmod(val, 60)
-        return datetime.time(hour, minute, second, microsecond)
+        return datetime.time(hour, minute, second, microsecond, tzinfo=tzinfo)
 
     @classmethod
     def format(cls, value):
@@ -394,11 +394,11 @@ class TimestampType(BaseType):
     fmt = '!q'
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         if size == 0:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        return datetime.datetime(2000, 1, 1, tzinfo=tzinfo) + datetime.timedelta(microseconds=val)
 
 
 class IntervalType(BaseType):
@@ -407,7 +407,7 @@ class IntervalType(BaseType):
     fmt = '!qii'
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         if not size:
             return None
         time_us, days, months = struct.unpack(cls.fmt, value[:size])
@@ -427,12 +427,11 @@ class TimestampTzType(BaseType):
     fmt = '!q'
 
     @classmethod
-    def parse(cls, value, size):
+    def parse(cls, value, size, tzinfo):
         if size == 0:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
-        # return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
-        return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+        return datetime.datetime(2000, 1, 1, tzinfo=tzinfo) + datetime.timedelta(microseconds=val)
 
     @classmethod
     def format(cls, value):
@@ -449,7 +448,7 @@ class NumericType(BaseType):
     klass = Decimal
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if not size:
             return None
         hsize = struct.calcsize('!HhHH')
@@ -512,7 +511,7 @@ class UUIDType(BaseType):
     klass = uuid.UUID
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         return uuid.UUID(bytes=value[:size])
 
     @classmethod
@@ -524,7 +523,7 @@ class JsonbType(BaseType):
     oid = 3802
 
     @staticmethod
-    def parse(value, size):
+    def parse(value, size, tzinfo):
         if value[0] == b'\x01':
             return json.loads(value[1:size].decode('utf-8'))
         return value[1:size].decode('utf-8')

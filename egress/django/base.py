@@ -16,6 +16,7 @@ from django.db.backends.postgresql.introspection import DatabaseIntrospection
 # from django.db.backends.postgresql.schema import DatabaseSchemaEditor
 
 from django.conf import settings
+from django.utils.timezone import utc
 
 import egress as Database
 
@@ -524,6 +525,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
+        connection.tzinfo = utc if settings.USE_TZ else None
         with connection.cursor() as cur:
             cur.execute('SET TIME ZONE UTC;')
             connection.commit()

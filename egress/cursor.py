@@ -299,6 +299,8 @@ class Cursor(object):
             return None
         rownum = self._resultrow
 
+        tzinfo = self.conn.tzinfo
+
         rec = []
         for idx, desc in enumerate(self._description):
             val = self._result.get_value(rownum, idx)
@@ -306,7 +308,7 @@ class Cursor(object):
             if not val and self._result.get_isnull(rownum, idx):
                 val = None
             else:
-                val = desc.type_code.parse(val, vlen)
+                val = desc.type_code.parse(val, vlen, tzinfo)
             rec.append(val)
         return tuple(rec)
 
