@@ -167,7 +167,7 @@ class ArrayType(BaseType):
             if el_size == -1:
                 val.append(None)
                 continue
-            val.append(cast.parse(value[offs:offs+el_size], size))
+            val.append(cast.parse(value[offs:offs+el_size], el_size, tzinfo))
             offs += el_size
         return val
 
