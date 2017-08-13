@@ -6,8 +6,8 @@ import struct
 import uuid
 
 from decimal import Decimal
-from functools import partial
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
+from itertools import repeat
 
 '''
 The module exports the following constructors and singletons:
@@ -96,329 +96,434 @@ DATETIME = DBAPITypeObject()
 ROWID = DBAPITypeObject()
 
 
-PARSER_MAP = {}
-FORMAT_MAP = {}
-
-
-def infer_parser(ftype, fmod):
+def infer_parser(ftype, fmod=-1):
     '''
     Given a postgres type OID and modifier, infer the related Type class
     '''
-    return partial(PARSER_MAP[ftype], ftype=ftype, fmod=fmod)
+    return BaseType._oid[ftype]
 
 
 def format_type(value):
     try:
-        return FORMAT_MAP[type(value)](value) + (1,)
+        return BaseType._type[type(value)].format(value) + (1,)
     except KeyError:
         value = str(value).encode('utf-8')
         return (0, value, 0, 0)
 
 
-def register_format(typ):
-    def _inner(func):
-        FORMAT_MAP[typ] = func
-        return func
-    return _inner
+class BaseTypeMeta(type):
+    def __new__(cls, name, bases, namespace, **kwds):
+        if 'fmt' in namespace and 'size' not in namespace:
+            namespace['size'] = struct.calcsize(namespace['fmt'])
+        new_cls = super().__new__(cls, name, bases, namespace, **kwds)
+        if new_cls.oid is not None:
+            new_cls._oid[new_cls.oid] = new_cls
+        if new_cls.klass is not None:
+            new_cls._type[new_cls.klass] = new_cls
+        return new_cls
 
 
-def register_parser(oid):
-    def _inner(func):
-        PARSER_MAP[oid] = func
-        return func
-    return _inner
+class BaseType(metaclass=BaseTypeMeta):
+    _oid = {}
+    _type = {}
+
+    oid = None
+    klass = None
+    fmt = ''
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        if size == 0:
+            return None
+        return struct.unpack(cls.fmt, value[:size])[0]
+
+    @classmethod
+    def format(cls, value):
+        return (cls.oid, struct.pack(cls.fmt, value), cls.size)
 
 
-@register_format(type(None))
-def format_none(value):
-    return (0, None, 0,)
+class ArrayType(BaseType):
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if not size:
+            return []
+        ndim, flags, element_type = struct.unpack('!iii', value[:12])
+
+        dim_info = []
+        offs = 12
+        for dim in range(ndim):
+            dim_info.append(
+                struct.unpack('!ii', value[offs:offs+8])
+            )
+            offs += 8
+
+        assert ndim == 1, 'Only single dimension arrays handled currently!'
+        cast = infer_parser(element_type)
+        val = []
+        for x in range(dim_info[0][1], dim_info[0][0]+1):
+            el_size = struct.unpack('!i', value[offs:offs+4])[0]
+            offs += 4
+            if el_size == -1:
+                val.append(None)
+                continue
+            val.append(cast.parse(value[offs:offs+el_size], el_size, tzinfo))
+            offs += el_size
+        return val
 
 
-@register_parser(16)
-def parse_bool(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('?', value[:1])[0]
+class NoneType(BaseType):
+    klass = type(None)
+
+    @staticmethod
+    def format(value):
+        return (0, None, 0,)
 
 
-@register_format(bool)
-def format_bool(value):
-    return (16, struct.pack('?', value), 1)
+class BoolType(BaseType):
+    fmt = '?'
+
+    oid = 16
+    klass = bool
 
 
-@register_parser(17)
-def parse_bytea(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen]
+class BinaryType(BaseType):
+    oid = 17
+    klass = bytes
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        return value[:size]
+
+    @staticmethod
+    def format(value):
+        return (17, c_char_p(value), len(value))
 
 
-@register_format(bytes)
-def format_bytea(value):
-    return (17, c_char_p(value), len(value))
+class CharType(BaseType):
+    oid = 18
+    fmt = 'c'
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        return value[:size].decode('utf-8')
 
 
-@register_parser(18)
-def parse_char(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:1].decode('utf-8')
+class NameDataType(BaseType):
+    oid = 19
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if size == 0:
+            return None
+        return value[:size].decode('utf-8')
 
 
-@register_parser(20)
-@register_parser(21)
-@register_parser(23)
-@register_parser(26)
-def parse_integer(value, vlen, ftype=None, fmod=None):
-    if vlen == -1:
-        return None
-    if vlen == 0:
-        return None
-    if vlen == 2:
-        return struct.unpack('!h', value[:vlen])[0]
-    if vlen == 4:
-        return struct.unpack('!i', value[:vlen])[0]
-    if vlen == 8:
-        return struct.unpack("!q", value[:vlen])[0]
-    raise ValueError('Unexpected length for INT type: %r' % vlen)
+class LongType(BaseType):
+    oid = 20
+    fmt = '!q'
+    klass = int
+
+    @staticmethod
+    def format(value):
+        bits = value.bit_length()
+        if bits < 16:
+            return (21, struct.pack('!h', value), 2)
+        elif bits < 32:
+            return (23, struct.pack('!i', value), 4)
+        else:
+            return (20, struct.pack('!q', value), 8)
 
 
-@register_format(int)
-def format_integer(value):
-    bits = value.bit_length()
-    if bits < 16:
-        return (21, struct.pack('!h', value), 2)
-    elif bits < 32:
-        return (23, struct.pack('!i', value), 4)
-    else:
-        return (20, struct.pack('!q', value), 8)
+class ShortIntType(BaseType):
+    oid = 21
+    fmt = '!h'
 
 
-@register_parser(1082)
-def parse_date(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    val = struct.unpack('!i', value[:vlen])[0]
-    return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
+class Int2VectorType(ArrayType):
+    oid = 22
 
 
-@register_format(datetime.date)
-def format_date(value):
-    val = (value - datetime.date(2000, 1, 1)).days
-    return (1082, struct.pack('!i', val), struct.calcsize('!i'))
-
-# @register_parser(1114)
-# def parse_timestamp(value, vlen, ftype=None, fmod=None):
-#     val = struct.unpack('!q', value[:8])[0]
-#     return datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc) + datetime.timedelta(microseconds=val)
+class IntType(BaseType):
+    oid = 23
+    fmt = '!i'
 
 
-@register_parser(1184)
-def parse_timestamp_tz(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    val = struct.unpack('!q', value[:vlen])[0]
-    return datetime.datetime(2000, 1, 1) + datetime.timedelta(microseconds=val)
+class StringType(BaseType):
+    '''
+    Django often passes strings when it means other types, and assumes the SQL
+    parsing will figure it out :/
+    To deal with this, we don't define a formatter, and pass all string
+    arguments as "guess this" text.
+    '''
+    oid = 25
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if not size:
+            return ''
+        return value[:size].decode('utf-8')
 
 
-@register_format(datetime.datetime)
-def format_timestamp(value):
-    if value.tzinfo:
-        val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
-    else:
-        val = (value - datetime.datetime(2000, 1, 1))
-    val = int(val.total_seconds() * 1000000)
-    return (1184, struct.pack('!q', val), 8)
+class OidType(BaseType):
+    oid = 26
+    fmt = '!q'
 
 
-@register_parser(25)
-@register_parser(1009)
-@register_parser(1042)
-@register_parser(1043)
-def parse_string(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return ''
-    return cast(value, c_char_p).value.decode('utf-8')
+class IPv4AddressType(BaseType):
+    '''
+    network IP address/netmask, network address
+    '''
+    oid = 650
+    klass = IPv4Address
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
+        if nb == 4:
+            if ip_bits:
+                return IPv4Network((value[4:4+nb], ip_bits))
+            return IPv4Address(value[4:4+nb])
+        elif nb == 16:
+            if ip_bits:
+                return IPv6Network((value[4:4+nb], ip_bits))
+            return IPv6Address(value[4:4+nb])
 
 
-# Django often passes strings when it means other types, and assumes the SQL
-# parsing will figure it out :/
-# @register_format(str)
-# def format_string(value):
-#     value = value.encode('utf-8')
-#     length = len(value)
-#     return (1042, struct.pack('%ds' % length, value), length,)
+class IPv4NetworkType(IPv4AddressType):
+    oid = None
+    klass = IPv4Network
 
 
-@register_parser(650)
-@register_parser(869)
-def parse_ipaddr(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:vlen])
-    if nb == 4:
-        if ip_bits:
-            return IPv4Network((value[4:4+nb], ip_bits))
-        return IPv4Address(value[4:4+nb])
-    elif nb == 16:
-        if ip_bits:
-            return IPv6Network((value[4:4+nb], ip_bits))
-        return IPv6Address(value[4:4+nb])
-    return value
+class IPv6AddressType(IPv4AddressType):
+    oid = None
+    klass = IPv6Address
 
 
-@register_parser(3802)
-def parse_jsonb(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    if value[0] == b'\x01':
-        return json.loads(value[1:vlen].decode('utf-8'))
-    return value[:vlen].decode('utf-8')
+class IPv6NetworkType(IPv4AddressType):
+    oid = None
+    klass = IPv6Network
 
 
-@register_parser(700)
-def parse_float(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('!f', value[:vlen])[0]
+class FloatType(BaseType):
+    oid = 700
+    fmt = '!f'
 
 
-@register_parser(701)
-def parse_double(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return struct.unpack('!d', value[:vlen])[0]
+class DoubleType(BaseType):
+    oid = 701
+    klass = float
+    fmt = '!d'
 
 
-@register_format(float)
-def format_double(value):
-    return (701, struct.pack('!d', value), struct.calcsize('!d'))
+class UnknownType(BaseType):
+    oid = 705
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if not size:
+            return None
+        return value[:size].decode('utf-8')
 
 
-@register_parser(19)
-def parse_namedata(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen].decode('utf-8')
+class IPAddressType(IPv4AddressType):
+    oid = 869
 
 
-@register_parser(2950)
-def parse_uuid(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return uuid.UUID(bytes=value[:vlen])
+class NameArrayType(ArrayType):
+    oid = 1003
 
 
-@register_format(uuid.UUID)
-def format_uuid(value):
-    return (2950, value.bytes, 16)
+class TextArray(ArrayType):
+    oid = 1009
 
 
-@register_parser(1700)
-def parse_numeric(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    hsize = struct.calcsize('!HhHH')
-    ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
-    if sign == 0xc000:
-        return Decimal('NaN')
-    desc = '!%dH' % ndigits
-    digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
-    n = '-' if sign else ''
-    # numeric has a form of compression where if the remaining digits are 0,
-    # they are not sent, even if we haven't reached the decimal point yet!
-    while weight >= len(digits):
-        digits = digits + (0,)
+class BlankPaddedString(StringType):
+    '''
+    char(length), blank-padded string, fixed storage length
+    '''
+    oid = 1042
 
-    for idx, digit in enumerate(digits):
-        n += '{:04d}'.format(digit)
-        if idx == weight:
+
+class VarCharType(StringType):
+    oid = 1043
+
+
+class DateType(BaseType):
+    oid = 1082
+    klass = datetime.date
+    fmt = '!i'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        if not size:
+            return None
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
+
+    @classmethod
+    def format(cls, value):
+        val = (value - datetime.date(2000, 1, 1)).days
+        return (1082, struct.pack(cls.fmt, val), cls.size)
+
+
+class TimeOfDayType(BaseType):
+    '''
+    64bit int of uSec since midnight.
+    '''
+    oid = 1083
+    klass = datetime.time
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        time_us = struct.unpack(cls.fmt, value[:size])[0]
+        val, microsecond = divmod(time_us, 1000000)
+        val, second = divmod(val, 60)
+        hour, minute = divmod(val, 60)
+        return datetime.time(hour, minute, second, microsecond, tzinfo=tzinfo)
+
+    @classmethod
+    def format(cls, value):
+        val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
+        return (cls.oid, struct.pack(cls.fmt, val), cls.size)
+
+
+class TimestampType(BaseType):
+    oid = 1114
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        if size == 0:
+            return None
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        return datetime.datetime(2000, 1, 1, tzinfo=tzinfo) + datetime.timedelta(microseconds=val)
+
+
+class IntervalType(BaseType):
+    oid = 1186
+    klass = datetime.timedelta
+    fmt = '!qii'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        if not size:
+            return None
+        time_us, days, months = struct.unpack(cls.fmt, value[:size])
+        val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
+        return val
+
+    @classmethod
+    def format(cls, value):
+        months, days = divmod(value.days, 30)
+        usec = value.seconds * 1000000 + value.microseconds
+        return (cls.oid, struct.pack(cls.fmt, usec, days, months), cls.size)
+
+
+class TimestampTzType(BaseType):
+    oid = 1184
+    klass = datetime.datetime
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        if size == 0:
+            return None
+        val = struct.unpack(cls.fmt, value[:size])[0]
+        return datetime.datetime(2000, 1, 1, tzinfo=tzinfo) + datetime.timedelta(microseconds=val)
+
+    @classmethod
+    def format(cls, value):
+        if value.tzinfo:
+            val = (value - datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+        else:
+            val = (value - datetime.datetime(2000, 1, 1))
+        val = int(val.total_seconds() * 1000000)
+        return (1184, struct.pack(cls.fmt, val), cls.size)
+
+
+class NumericType(BaseType):
+    oid = 1700
+    klass = Decimal
+
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if not size:
+            return None
+        hsize = struct.calcsize('!HhHH')
+        ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
+        if sign == 0xc000:
+            return Decimal('NaN')
+        desc = '!%dH' % ndigits
+        digits = struct.unpack(desc, value[hsize:hsize+struct.calcsize(desc)])
+
+        def source(digits):
+            '''
+            A generator to yield the digits from the Digits, and then an
+            infinite stream of '0's.
+            '''
+            for d in digits:
+                dd = '{:04d}'.format(d)
+                yield from dd
+            yield from repeat('0')
+
+        src = source(digits)
+
+        n = '-' if sign else ''
+        # numeric has a form of compression where if the remaining digits are 0
+        # they are not sent, even if we haven't reached the decimal point yet!
+        for _ in range((weight+1) * 4):
+            n = n + next(src)
+        if dscale:
             n += '.'
-    n = Decimal(n)
-    return n
+            for _ in range(dscale):
+                n = n + next(src)
+        n = Decimal(n)
+        return n
+
+    @classmethod
+    def format(cls, value):
+        sign, digits, exponent = value.as_tuple()
+        dscale = abs(exponent)
+        if exponent:
+            frac = digits[exponent:]
+            digits = digits[:exponent]
+        else:
+            frac = []
+        vals = []
+        while digits:
+            vals.append(int(''.join(map(str, digits[:4]))))
+            digits = digits[4:]
+        weight = len(vals)
+        while frac:
+            d = (frac[:4] + ('0',) * 4)[:4]
+            frac = frac[4:]
+            vals.append(int(''.join(map(str, d))))
+        fmt = '!HhHH%dH' % len(vals)
+        size = struct.calcsize(fmt)
+        val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
+        return (cls.oid, val, size)
 
 
-@register_format(Decimal)
-def format_numeric(value):
-    sign, digits, exponent = value.as_tuple()
-    dscale = abs(exponent)
-    if exponent:
-        frac = digits[exponent:]
-        digits = digits[:exponent]
-    else:
-        frac = []
-    vals = []
-    while digits:
-        vals.append(int(''.join(map(str, digits[:4]))))
-        digits = digits[4:]
-    weight = len(vals)
-    while frac:
-        d = (frac[:4] + ('0',) * 4)[:4]
-        frac = frac[4:]
-        vals.append(int(''.join(map(str, d))))
-    fmt = '!HhHH%dH' % len(vals)
+class UUIDType(BaseType):
+    oid = 2950
+    klass = uuid.UUID
 
-    val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
-    return (1700, val, struct.calcsize(fmt))
+    @staticmethod
+    def parse(value, size, tzinfo):
+        return uuid.UUID(bytes=value[:size])
 
-# @register_parser(2277)
-def parse_anyarray(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    offs = 0
-    size = struct.calcsize('!iii')
-    ndim, flags, etype = struct.unpack('!iii', value[:size])
-    offs += size
-    size = struct.calcsize('!ii')
-    dim_info = []
-    for _ in range(ndim):
-        dim_info.append(
-            struct.unpack('!ii', value[offs:offs+size])
-        )
-        offs += size
+    @classmethod
+    def format(cls, value):
+        return (cls.oid, value.bytes, 16)
 
 
-@register_parser(1003)
-def parse_name(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return parse_anyarray(value, vlen, ftype, fmod)
+class JsonbType(BaseType):
+    oid = 3802
 
-
-@register_parser(1186)
-def parse_interval(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    time_us, days, months = struct.unpack('!qii', value[:vlen])
-    val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
-    return val
-
-
-@register_parser(1083)
-def parse_time_of_day(value, vlen, ftype=None, fmod=None):
-    '''
-    64bit int of uSec since midnight.
-    '''
-    if not vlen:
-        return None
-    time_us = struct.unpack('!q', value[:vlen])[0]
-    val, microsecond = divmod(time_us, 1000000)
-    val, second = divmod(val, 60)
-    hour, minute = divmod(val, 60)
-    return datetime.time(hour, minute, second, microsecond)
-
-
-@register_format(datetime.time)
-def format_time_of_day(value):
-    '''
-    64bit int of uSec since midnight.
-    '''
-    val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
-    return (1083, struct.pack('!q', val), struct.calcsize('!q'))
-
-
-@register_parser(705)
-def parse_unknown(value, vlen, ftype=None, fmod=None):
-    if not vlen:
-        return None
-    return value[:vlen].decode('utf-8')
+    @staticmethod
+    def parse(value, size, tzinfo):
+        if value[0] == b'\x01':
+            return json.loads(value[1:size].decode('utf-8'))
+        return value[1:size].decode('utf-8')

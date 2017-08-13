@@ -10,14 +10,20 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 from django.db.backends.postgresql.client import DatabaseClient
 # from django.db.backends.postgresql.creation import DatabaseCreation
-from django.db.backends.postgresql.features import DatabaseFeatures
+from django.db.backends.postgresql.features import DatabaseFeatures as _DatabaseFeatures
 from django.db.backends.postgresql.introspection import DatabaseIntrospection
 # from django.db.backends.postgresql.operations import DatabaseOperations
 # from django.db.backends.postgresql.schema import DatabaseSchemaEditor
 
 from django.conf import settings
+from django.utils.timezone import utc
 
 import egress as Database
+
+
+class DatabaseFeatures(_DatabaseFeatures):
+    supports_paramstyle_pyformat = False
+    supports_timezones = False
 
 
 class DatabaseCreation(BaseDatabaseCreation):
@@ -44,19 +50,6 @@ class DatabaseCreation(BaseDatabaseCreation):
             encoding=test_settings['CHARSET'],
             template=test_settings.get('TEMPLATE'),
         )
-
-    def _execute_create_test_db(self, cursor, parameters, keepdb=False):
-        try:
-            super()._execute_create_test_db(cursor, parameters, keepdb)
-        except Exception as e:
-            if getattr(e.__cause__, 'pgcode', '') != errorcodes.DUPLICATE_DATABASE:
-                # All errors except "database already exists" cancel tests.
-                sys.stderr.write('Got an error creating the test database: %s\n' % e)
-                sys.exit(2)
-            elif not keepdb:
-                # If the database should be kept, ignore "database already
-                # exists".
-                raise e
 
     def _clone_test_db(self, number, verbosity, keepdb=False):
         # CREATE DATABASE ... WITH TEMPLATE ... requires closing connections
@@ -532,6 +525,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
+        connection.tzinfo = utc if settings.USE_TZ else None
         with connection.cursor() as cur:
             cur.execute('SET TIME ZONE UTC;')
             connection.commit()
@@ -574,3 +568,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             return False
         else:
             return True
+
+    def check_constraints(self, table_names=None):
+        """
+        Check constraints by setting them to immediate. Return them to deferred
+        afterward.
+        """
+        self.cursor().execute('SET CONSTRAINTS ALL IMMEDIATE')
+        self.cursor().execute('SET CONSTRAINTS ALL DEFERRED')
