@@ -1,4 +1,4 @@
-from ctypes import cast, c_char_p, c_int
+from ctypes import c_char_p
 
 import datetime
 import json
@@ -76,24 +76,6 @@ class DBAPITypeObject(object):
             return 1
         else:
             return -1
-
-
-# This type object is used to describe columns in a database that are
-# string-based (e.g. CHAR).
-STRING = DBAPITypeObject()
-
-# This type object is used to describe (long) binary columns in a database
-# (e.g. LONG, RAW, BLOBs).
-BINARY = DBAPITypeObject()
-
-# This type object is used to describe numeric columns in a database.
-NUMBER = DBAPITypeObject()
-
-# This type object is used to describe date/time columns in a database.
-DATETIME = DBAPITypeObject()
-
-# This type object is used to describe the "Row ID" column in a database.
-ROWID = DBAPITypeObject()
 
 
 def infer_parser(ftype, fmod=-1):
@@ -502,7 +484,7 @@ class NumericType(BaseType):
             vals.append(int(''.join(map(str, d))))
         fmt = '!HhHH%dH' % len(vals)
         size = struct.calcsize(fmt)
-        val = struct.pack(fmt , len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
+        val = struct.pack(fmt, len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
         return (cls.oid, val, size)
 
 
@@ -527,3 +509,21 @@ class JsonbType(BaseType):
         if value[0] == b'\x01':
             return json.loads(value[1:size].decode('utf-8'))
         return value[1:size].decode('utf-8')
+
+
+# This type object is used to describe columns in a database that are
+# string-based (e.g. CHAR).
+STRING = StringType()
+
+# This type object is used to describe (long) binary columns in a database
+# (e.g. LONG, RAW, BLOBs).
+BINARY = BinaryType()
+
+# This type object is used to describe numeric columns in a database.
+NUMBER = NumericType()
+
+# This type object is used to describe date/time columns in a database.
+DATETIME = TimestampTzType()
+
+# This type object is used to describe the "Row ID" column in a database.
+ROWID = int()

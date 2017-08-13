@@ -4,6 +4,8 @@ from collections import namedtuple
 from ctypes import c_char_p, c_int, c_uint
 
 from . import libpq, types
+from .exceptions import InterfaceError
+
 
 PARAM_RE = re.compile('\$\d+')
 
