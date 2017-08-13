@@ -219,10 +219,11 @@ class Cursor(object):
         Return values are not defined.
         '''
         # Convert %s -> $n
-        ctr = itertools.count(1)
-        def repl(match):
-            return '$%d' % next(ctr)
-        operation = re.sub('(?<!%)%s', repl, operation)
+        if parameters:
+            ctr = itertools.count(1)
+            def repl(match):
+                return '$%d' % next(ctr)
+            operation = re.sub('(?<!%)%s', repl, operation)
         operation = operation.replace('%%', '%')
 
         param_count = len(PARAM_RE.findall(operation))
@@ -252,10 +253,9 @@ class Cursor(object):
             parameters = []
             paramTypes = paramValues = paramLengths = paramFormats = None
 
-        self.query = PARAM_RE.sub(
-            lambda m: str(parameters[int(m.group(0).lstrip('$'))-1]),
-            operation.decode('utf-8')
-        )
+        def unrepl(m):
+            return str(parameters[int(m.group(0).lstrip('$'))-1])
+        self.query = PARAM_RE.sub(unrepl, operation.decode('utf-8'))
 
         # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
@@ -331,7 +331,7 @@ class Cursor(object):
         for idx, desc in enumerate(self._description):
             val = self._result.get_value(rownum, idx)
             vlen = self._result.get_length(rownum, idx)
-            if not val and self._result.get_isnull(rownum, idx):
+            if self._result.get_isnull(rownum, idx):
                 val = None
             else:
                 val = desc.cast_func.parse(val, vlen, tzinfo)

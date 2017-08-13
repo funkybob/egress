@@ -47,8 +47,6 @@ class BaseType(metaclass=BaseTypeMeta):
 
     @classmethod
     def parse(cls, value, size, tzinfo):
-        if size == 0:
-            return None
         return struct.unpack(cls.fmt, value[:size])[0]
 
     @classmethod
@@ -60,8 +58,6 @@ class ArrayType(BaseType):
 
     @staticmethod
     def parse(value, size, tzinfo):
-        if not size:
-            return []
         ndim, flags, element_type = struct.unpack('!iii', value[:12])
 
         dim_info = []
@@ -107,8 +103,6 @@ class BinaryType(BaseType):
 
     @staticmethod
     def parse(value, size, tzinfo):
-        if not size:
-            return None
         return value[:size]
 
     @staticmethod
@@ -173,12 +167,9 @@ class StringType(BaseType):
     arguments as "guess this" text.
     '''
     oid = 25
-    blank_value = ''
 
     @classmethod
     def parse(cls, value, size, tzinfo):
-        if not size:
-            return cls.blank_value
         return value[:size].decode('utf-8')
 
 
@@ -198,11 +189,11 @@ class IPv4AddressType(BaseType):
     def parse(value, size, tzinfo):
         ip_family, ip_bits, is_cidr, nb = struct.unpack('BBBB', value[:4])
         if nb == 4:
-            if ip_bits:
+            if ip_bits < 32:
                 return IPv4Network((value[4:4+nb], ip_bits))
             return IPv4Address(value[4:4+nb])
         elif nb == 16:
-            if ip_bits:
+            if ip_bits < 128:
                 return IPv6Network((value[4:4+nb], ip_bits))
             return IPv6Address(value[4:4+nb])
 
@@ -238,8 +229,6 @@ class UnknownType(BaseType):
 
     @staticmethod
     def parse(value, size, tzinfo):
-        if not size:
-            return None
         return value[:size].decode('utf-8')
 
 
@@ -273,8 +262,6 @@ class DateType(BaseType):
 
     @classmethod
     def parse(cls, value, size, tzinfo):
-        if not size:
-            return None
         val = struct.unpack(cls.fmt, value[:size])[0]
         return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
@@ -294,8 +281,6 @@ class TimeOfDayType(BaseType):
 
     @classmethod
     def parse(cls, value, size, tzinfo):
-        if not size:
-            return None
         time_us = struct.unpack(cls.fmt, value[:size])[0]
         val, microsecond = divmod(time_us, 1000000)
         val, second = divmod(val, 60)
@@ -327,8 +312,6 @@ class IntervalType(BaseType):
 
     @classmethod
     def parse(cls, value, size, tzinfo):
-        if not size:
-            return None
         time_us, days, months = struct.unpack(cls.fmt, value[:size])
         val = datetime.timedelta(days=days + months * 30, microseconds=time_us)
         return val
@@ -387,8 +370,6 @@ class NumericType(BaseType):
 
     @staticmethod
     def parse(value, size, tzinfo):
-        if not size:
-            return None
         hsize = struct.calcsize('!HhHH')
         ndigits, weight, sign, dscale = struct.unpack('!HhHH', value[:hsize])
         if sign == 0xc000:
