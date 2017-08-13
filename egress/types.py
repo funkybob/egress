@@ -294,6 +294,8 @@ class TimeOfDayType(BaseType):
 
     @classmethod
     def parse(cls, value, size, tzinfo):
+        if not size:
+            return None
         time_us = struct.unpack(cls.fmt, value[:size])[0]
         val, microsecond = divmod(time_us, 1000000)
         val, second = divmod(val, 60)
