@@ -1,3 +1,4 @@
+import itertools
 import re
 
 from collections import namedtuple
@@ -7,7 +8,7 @@ from . import libpq, types
 from .exceptions import InterfaceError
 
 
-PARAM_RE = re.compile('\$\d+')
+PARAM_RE = re.compile('\$(\d+)')
 
 Description = namedtuple('Description', (
     'name',
@@ -17,6 +18,7 @@ Description = namedtuple('Description', (
     'precision',
     'scale',
     'null_ok',
+    'cast_func',
 ))
 
 
@@ -73,18 +75,35 @@ class Cursor(object):
             fmod = result.field_modifier(field)
             fname = result.field_name(field)
             fsize = result.field_size(field)
+            if fmod > 0:
+                fmod -= 4
+            if fsize == -1:
+                if ftype == 1700:   # Numeric
+                    isize = fmod >> 16
+                else:
+                    isize = fmod
+            else:
+                isize = fsize
+
+            if ftype == 1700:
+                prec = (fmod >> 16) & 0xFFFF
+                scale = fmod & 0xFFFF
+            else:
+                prec = scale = None
+
             try:
                 cast_func = types.infer_parser(ftype, fmod)
             except:
                 raise TypeError('Unknown type for field %r: %r %r' % (fname, ftype, fmod))
             desc.append(Description(
                 fname,
+                ftype,
+                None,
+                isize,
+                prec,
+                scale,
+                None,
                 cast_func,
-                None,
-                fsize,
-                None,
-                None,
-                None,
             ))
         self._description = desc
         self._resultrow = -1
@@ -200,10 +219,10 @@ class Cursor(object):
         Return values are not defined.
         '''
         if parameters:
-            ctr = 1
-            while '%s' in operation:
-                operation = operation.replace('%s', '$%d' % ctr, 1)
-                ctr += 1
+            ctr = itertools.count(1)
+            def repl(match):
+                return '$%d' % next(ctr)
+            operation = re.sub('%s', repl, operation)
             operation = operation.replace('%%', '%')
 
         param_count = len(PARAM_RE.findall(operation))
@@ -233,9 +252,11 @@ class Cursor(object):
             parameters = []
             paramTypes = paramValues = paramLengths = paramFormats = None
 
-        self.query = operation.decode('utf-8')
-        for idx, param in enumerate(parameters):
-            self.query.replace('$%d' % idx, str(param), 1)
+        self.query = PARAM_RE.sub(
+            lambda m: str(parameters[int(m.group(0).lstrip('$'))-1]),
+            operation.decode('utf-8')
+        )
+
         # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
             result = self.conn.conn.execute('BEGIN')
@@ -313,7 +334,7 @@ class Cursor(object):
             if not val and self._result.get_isnull(rownum, idx):
                 val = None
             else:
-                val = desc.type_code.parse(val, vlen, tzinfo)
+                val = desc.cast_func.parse(val, vlen, tzinfo)
             rec.append(val)
         return tuple(rec)
 
