@@ -32,3 +32,6 @@ apilevel = '2.0'  # NOQA
 threadsafety = 1
 
 paramstyle = 'numeric'
+
+
+Binary = bytes
