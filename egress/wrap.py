@@ -100,6 +100,9 @@ class PGConnection:
     def connect(self, conn_str):
         self._conn = libpq.PQconnectdb(conn_str.encode('utf-8'))
 
+    def version(self):
+        return libpq.PQserverVersion(self._conn)
+
     def finish(self):
         if self._conn:
             libpq.PQfinish(self._conn)

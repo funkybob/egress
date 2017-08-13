@@ -102,6 +102,10 @@ PQexec = libpq.PQexec
 PQexec.argtypes = [PGconn_p, c_char_p]
 PQexec.restype = PGresult_p
 
+# int PQserverVersion(const PGconn *conn);
+PQserverVersion = libpq.PQserverVersion
+PQserverVersion.argtypes = [PGconn_p]
+PQserverVersion.restype = c_int
 
 # PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
 PQtransactionStatus = libpq.PQtransactionStatus
