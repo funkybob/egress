@@ -90,7 +90,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
-        connection.tzinfo = utc if settings.USE_TZ else None
         with connection.cursor() as cur:
             cur.execute('SET TIME ZONE UTC;')
             connection.commit()
@@ -123,7 +122,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         return conn_params
 
     def create_cursor(self, name=None):
-        return self.connection.cursor()
+        cursor = self.connection.cursor()
+        cursor.tzinfo = utc if settings.USE_TZ else None
+        return cursor
 
     def is_usable(self):
         try:
