@@ -4,6 +4,8 @@ from collections import namedtuple
 from ctypes import c_char_p, c_int, c_uint
 
 from . import libpq, types
+from .exceptions import InterfaceError
+
 
 PARAM_RE = re.compile('\$\d+')
 
@@ -24,6 +26,7 @@ class Cursor(object):
         self.query = None
         self.arraysize = 1
         self._result = None
+        self.tzinfo = self.conn.tzinfo
         self._cleanup()
 
     def __enter__(self):
@@ -230,7 +233,9 @@ class Cursor(object):
             parameters = []
             paramTypes = paramValues = paramLengths = paramFormats = None
 
-        self.query = operation
+        self.query = operation.decode('utf-8')
+        for idx, param in enumerate(parameters):
+            self.query.replace('$%d' % idx, str(param), 1)
         # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
             result = self.conn.conn.execute('BEGIN')
@@ -299,7 +304,7 @@ class Cursor(object):
             return None
         rownum = self._resultrow
 
-        tzinfo = self.conn.tzinfo
+        tzinfo = self.tzinfo
 
         rec = []
         for idx, desc in enumerate(self._description):

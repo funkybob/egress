@@ -1,5 +1,5 @@
 
-from ctypes import *
+from ctypes import cdll, c_int, c_uint, Structure, POINTER, c_char_p, c_char, c_size_t
 from ctypes.util import find_library
 
 libpq = cdll.LoadLibrary(find_library('pq'))
@@ -67,6 +67,7 @@ TransStatusType = c_int
 class PGconn(Structure):
     _fields_ = []
 
+
 PGconn_p = POINTER(PGconn)
 
 
@@ -101,6 +102,10 @@ PQexec = libpq.PQexec
 PQexec.argtypes = [PGconn_p, c_char_p]
 PQexec.restype = PGresult_p
 
+# int PQserverVersion(const PGconn *conn);
+PQserverVersion = libpq.PQserverVersion
+PQserverVersion.argtypes = [PGconn_p]
+PQserverVersion.restype = c_int
 
 # PGTransactionStatusType PQtransactionStatus(const PGconn *conn);
 PQtransactionStatus = libpq.PQtransactionStatus
