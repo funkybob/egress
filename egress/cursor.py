@@ -218,12 +218,12 @@ class Cursor(object):
 
         Return values are not defined.
         '''
-        if parameters:
-            ctr = itertools.count(1)
-            def repl(match):
-                return '$%d' % next(ctr)
-            operation = re.sub('%s', repl, operation)
-            operation = operation.replace('%%', '%')
+        # Convert %s -> $n
+        ctr = itertools.count(1)
+        def repl(match):
+            return '$%d' % next(ctr)
+        operation = re.sub('(?<!%)%s', repl, operation)
+        operation = operation.replace('%%', '%')
 
         param_count = len(PARAM_RE.findall(operation))
 
