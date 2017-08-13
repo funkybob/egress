@@ -3,4 +3,5 @@ from django.db.backends.postgresql.features import DatabaseFeatures as _Database
 
 class DatabaseFeatures(_DatabaseFeatures):
     supports_paramstyle_pyformat = False
-    supports_timezones = False
+    # TEMPORARY!
+    has_jsonb_datatype = False
