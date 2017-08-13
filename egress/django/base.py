@@ -3,6 +3,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db.backends.base.base import BaseDatabaseWrapper
 
 from django.conf import settings
+from django.utils.functional import cached_property
 from django.utils.timezone import utc
 
 import egress as Database
@@ -140,3 +141,8 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         """
         self.cursor().execute('SET CONSTRAINTS ALL IMMEDIATE')
         self.cursor().execute('SET CONSTRAINTS ALL DEFERRED')
+
+    @cached_property
+    def pg_version(self):
+        with self.temporary_connection():
+            return self.connection.conn.version()
