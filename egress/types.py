@@ -9,74 +9,6 @@ from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 from itertools import repeat
 
-'''
-The module exports the following constructors and singletons:
-'''
-INTEGER_DATETIMES = False
-
-
-def Date(year, month, day):
-    '''
-    This function constructs an object holding a date value.
-    '''
-
-
-def Time(hour, minute, second):
-    '''
-    This function constructs an object holding a time value.
-    '''
-
-
-def Timestamp(year, month, day, hour, minute, second):
-    '''
-    This function constructs an object holding a time stamp value.
-    '''
-
-
-def DateFromTicks(ticks):
-    '''
-    This function constructs an object holding a date value from the given
-    ticks value (number of seconds since the epoch; see the documentation of
-    the standard Python time module for details).
-    '''
-
-
-def TimeFromTicks(ticks):
-    '''
-    This function constructs an object holding a time value from the given
-    ticks value (number of seconds since the epoch; see the documentation of
-    the standard Python time module for details).
-    '''
-
-
-def TimestampFromTicks(ticks):
-    '''
-    This function constructs an object holding a time stamp value from the
-    given ticks value (number of seconds since the epoch; see the documentation
-    of the standard Python time module for details).
-    '''
-
-
-def Binary(string):
-    '''
-    This function constructs an object capable of holding a binary (long)
-    string value.
-    '''
-
-
-class DBAPITypeObject(object):
-    '''Copied from PEP-249'''
-    def __init__(self, *values):
-        self.values = values
-
-    def __cmp__(self, other):
-        if other in self.values:
-            return 0
-        if other < self.values:
-            return 1
-        else:
-            return -1
-
 
 def infer_parser(ftype, fmod=-1):
     '''
@@ -423,6 +355,25 @@ class TimestampTzType(BaseType):
             val = (value - datetime.datetime(2000, 1, 1))
         val = int(val.total_seconds() * 1000000)
         return (1184, struct.pack(cls.fmt, val), cls.size)
+
+
+class TimeTzType(BaseType):
+    oid = 1266
+    # klass = datetime.time
+    fmt = '!q'
+
+    @classmethod
+    def parse(cls, value, size, tzinfo):
+        time_us = struct.unpack(cls.fmt, value[:size])[0]
+        val, microsecond = divmod(time_us, 1000000)
+        val, second = divmod(val, 60)
+        hour, minute = divmod(val, 60)
+        return datetime.time(hour, minute, second, microsecond, tzinfo=tzinfo)
+
+    @classmethod
+    def format(cls, value):
+        val = ((value.hour * 60 + value.minute) * 60 + value.second) * 1000000 + value.microsecond
+        return (cls.oid, struct.pack(cls.fmt, val), cls.size)
 
 
 class NumericType(BaseType):
