@@ -1,6 +1,10 @@
+import logging
 
 from . import libpq, exceptions
 from .cursor import Cursor
+
+
+log = logging.getLogger(__name__)
 
 
 EXC_MAP = {
@@ -182,7 +186,11 @@ class Connection(object):
         status = result.status()
         if status in (libpq.PGRES_COMMAND_OK, libpq.PGRES_TUPLES_OK):
             return self._check_conn_status()
+
         msg = result.error_message()
+        if status == libpq.PGRES_NONFATAL_ERROR:
+            log.warning(msg)
+            return self._check_conn_status()
 
         code = result.error_field(libpq.PG_DIAG_SQLSTATE)
         if code:
