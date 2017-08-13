@@ -107,6 +107,8 @@ class BinaryType(BaseType):
 
     @staticmethod
     def parse(value, size, tzinfo):
+        if not size:
+            return None
         return value[:size]
 
     @staticmethod
@@ -171,11 +173,12 @@ class StringType(BaseType):
     arguments as "guess this" text.
     '''
     oid = 25
+    blank_value = ''
 
-    @staticmethod
-    def parse(value, size, tzinfo):
+    @classmethod
+    def parse(cls, value, size, tzinfo):
         if not size:
-            return ''
+            return cls.blank_value
         return value[:size].decode('utf-8')
 
 
@@ -435,7 +438,7 @@ class NumericType(BaseType):
             vals.append(int(''.join(map(str, d))))
         fmt = '!HhHH%dH' % len(vals)
         size = struct.calcsize(fmt)
-        val = struct.pack(fmt, len(vals), max(0, weight-1), 0xc000 if sign else 0, dscale, *vals)
+        val = struct.pack(fmt, len(vals), max(0, weight-1), 0x4000 if sign else 0, dscale, *vals)
         return (cls.oid, val, size)
 
 
