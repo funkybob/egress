@@ -1,4 +1,9 @@
+import logging
+
 from . import libpq
+from .exceptions import DatabaseError
+
+log = logging.getLogger(__name__)
 
 
 class Result:
@@ -79,6 +84,26 @@ class Result:
 
     def get_isnull(self, row, field):
         return libpq.PQgetisnull(self._result, row, field)
+
+    def check_cmd_result(self):
+        status = self.status()
+        if status in (libpq.PGRES_COMMAND_OK, libpq.PGRES_TUPLES_OK):
+            return None
+
+        msg = self.error_message()
+        if status == libpq.PGRES_NONFATAL_ERROR:
+            log.warning(msg)
+            return None
+
+        code = self.error_field(libpq.PG_DIAG_SQLSTATE)
+        if code:
+            from .connection import EXC_MAP
+            exc_class = EXC_MAP.get(code[:2], DatabaseError)
+        else:
+            exc_class = DatabaseError
+
+        self.clear()
+        raise exc_class(msg)
 
 
 class PGConnection:

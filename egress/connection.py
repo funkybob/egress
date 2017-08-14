@@ -136,7 +136,7 @@ class Connection(object):
         '''
         if self._in_txn:
             res = self.conn.execute('COMMIT')
-            self._check_cmd_result(res)
+            res.check_cmd_result()
 
     @requires_open
     def rollback(self):
@@ -151,7 +151,7 @@ class Connection(object):
         '''
         if self._in_txn:
             res = self.conn.execute('ROLLBACK')
-            self._check_cmd_result(res)
+            res.check_cmd_result()
 
     def cursor(self):
         '''
@@ -181,22 +181,3 @@ class Connection(object):
             return
         msg = self.conn.error_message()
         raise exceptions.DatabaseError(msg)
-
-    def _check_cmd_result(self, result):
-        status = result.status()
-        if status in (libpq.PGRES_COMMAND_OK, libpq.PGRES_TUPLES_OK):
-            return self._check_conn_status()
-
-        msg = result.error_message()
-        if status == libpq.PGRES_NONFATAL_ERROR:
-            log.warning(msg)
-            return self._check_conn_status()
-
-        code = result.error_field(libpq.PG_DIAG_SQLSTATE)
-        if code:
-            exc_class = EXC_MAP.get(code[:2], exceptions.DatabaseError)
-        else:
-            exc_class = exceptions.DatabaseError
-
-        result.clear()
-        raise exc_class(msg)

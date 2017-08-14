@@ -74,7 +74,7 @@ class ArrayType(BaseType):
         for x in range(dim_info[0][1], dim_info[0][0]+1):
             el_size = struct.unpack('!i', value[offs:offs+4])[0]
             offs += 4
-            if el_size == -1:
+            if el_size in (-1, 0):
                 val.append(None)
                 continue
             val.append(cast.parse(value[offs:offs+el_size], el_size, tzinfo))

@@ -221,6 +221,7 @@ class Cursor(object):
         # Convert %s -> $n
         if parameters:
             ctr = itertools.count(1)
+
             def repl(match):
                 return '$%d' % next(ctr)
             operation = re.sub('(?<!%)%s', repl, operation)
@@ -260,7 +261,8 @@ class Cursor(object):
         # print('{%r:%r}[A:%r T:%r] %r : %r' % (id(self.conn), id(self), self.conn._autocommit, self.conn._in_txn, operation, parameters))
         if not (self.conn._autocommit or self.conn._in_txn):
             result = self.conn.conn.execute('BEGIN')
-            self.conn._check_cmd_result(result)
+            result.check_cmd_result()
+
         result = self.conn.conn.exec_params(
             operation,
             len(parameters),
@@ -273,7 +275,7 @@ class Cursor(object):
         # print(result.cmd_status())
 
         # Did it succeed?
-        self.conn._check_cmd_result(result)
+        result.check_cmd_result()
 
         self._set_result(result)
 
