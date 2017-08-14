@@ -195,7 +195,7 @@ class IPv4AddressType(BaseType):
         if nb == 4:
             if ip_bits < 32:
                 return IPv4Network((value[4:4+nb], ip_bits))
-            return IPv4Address(value[4:4+nb])
+            return str(IPv4Address(value[4:4+nb]))
         elif nb == 16:
             if ip_bits < 128:
                 return IPv6Network((value[4:4+nb], ip_bits))
