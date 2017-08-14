@@ -70,8 +70,12 @@ class ArrayType(BaseType):
 
         assert ndim == 1, 'Only single dimension arrays handled currently!'
         cast = infer_parser(element_type)
+
         val = []
-        for x in range(dim_info[0][1], dim_info[0][0]+1):
+        dim, lb = dim_info[0]
+        ub = lb + dim - 1
+
+        for x in range(lb, ub+1):
             el_size = struct.unpack('!i', value[offs:offs+4])[0]
             offs += 4
             if el_size in (-1, 0):
