@@ -22,6 +22,15 @@ Description = namedtuple('Description', (
 ))
 
 
+def requires_connection(func):
+    def _wrapper(self, *args, **kwargs):
+        if not self.conn or not self.conn.conn:
+            raise InterfaceError('Cursor requires an active connection.')
+        return func(self, *args, **kwargs)
+
+    return _wrapper
+
+
 class Cursor(object):
     def __init__(self, conn):
         self.conn = conn
@@ -31,6 +40,7 @@ class Cursor(object):
         self.tzinfo = self.conn.tzinfo
         self._cleanup()
 
+    @requires_connection
     def __enter__(self):
         return self
 
@@ -162,6 +172,7 @@ class Cursor(object):
         '''
         return self._rowcount
 
+    @requires_connection
     def callproc(self, procname, parameters=None):
         '''
         (This method is optional since not all databases provide stored
@@ -191,6 +202,7 @@ class Cursor(object):
             self.conn._close_cursor(self)
             self.conn = None
 
+    @requires_connection
     def execute(self, operation, parameters=None):
         '''
         Prepare and execute a database operation (query or command).
