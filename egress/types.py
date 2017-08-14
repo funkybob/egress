@@ -71,9 +71,9 @@ class ArrayType(BaseType):
         assert ndim == 1, 'Only single dimension arrays handled currently!'
         cast = infer_parser(element_type)
 
-        val = []
         dim, lb = dim_info[0]
         ub = lb + dim - 1
+        val = [None] * dim
 
         for x in range(lb, ub+1):
             el_size = struct.unpack('!i', value[offs:offs+4])[0]
@@ -81,7 +81,7 @@ class ArrayType(BaseType):
             if el_size in (-1, 0):
                 val.append(None)
                 continue
-            val.append(cast.parse(value[offs:offs+el_size], el_size, tzinfo))
+            val[x-1] = cast.parse(value[offs:offs+el_size], el_size, tzinfo)
             offs += el_size
         return val
 
@@ -199,7 +199,7 @@ class IPv4AddressType(BaseType):
         elif nb == 16:
             if ip_bits < 128:
                 return IPv6Network((value[4:4+nb], ip_bits))
-            return IPv6Address(value[4:4+nb])
+            return str(IPv6Address(value[4:4+nb]))
 
 
 class IPv4NetworkType(IPv4AddressType):
