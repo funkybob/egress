@@ -236,6 +236,11 @@ PQescapeLiteral = libpq.PQescapeLiteral
 PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_size_t]
 PQescapeLiteral.restype = c_char_p
 
+# char *PQescapeIdentifier(PGconn *conn, const char *str, size_t length);
+PQescapeIdentifier = libpq.PQescapeIdentifier
+PQescapeIdentifier.argtypes = [PGconn_p, c_char_p, c_size_t]
+PQescapeIdentifier.restype = c_char_p
+
 # char *PQcmdStatus(PGresult *res);
 PQcmdStatus = libpq.PQcmdStatus
 PQcmdStatus.argtypes = [PGresult_p]
