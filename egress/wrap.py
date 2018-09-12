@@ -103,7 +103,7 @@ class Result:
             exc_class = DatabaseError
 
         self.clear()
-        raise exc_class(msg)
+        raise exc_class(msg, code)
 
 
 class PGConnection:
