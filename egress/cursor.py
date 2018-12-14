@@ -104,7 +104,7 @@ class Cursor(object):
             try:
                 cast_func = types.infer_parser(ftype, fmod)
             except:
-                raise TypeError('Unknown type for field %r: %r %r' % (fname, ftype, fmod))
+                raise TypeError('Unknown type for field %r: %r(%x) %r' % (fname, ftype, ftype, fmod))
             desc.append(Description(
                 fname,
                 ftype,
@@ -284,7 +284,6 @@ class Cursor(object):
             paramFormats,
             1
         )
-        # print(result.cmd_status())
 
         # Did it succeed?
         result.check_cmd_result()

@@ -179,7 +179,7 @@ class StringType(BaseType):
 
 class OidType(BaseType):
     oid = 26
-    fmt = '!q'
+    fmt = '!i'  # '!q'
 
 
 class IPv4AddressType(BaseType):
@@ -244,8 +244,56 @@ class NameArrayType(ArrayType):
     oid = 1003
 
 
+class Int2ArrayType(ArrayType):
+    oid = 1005
+
+
+class Int4ArrayType(ArrayType):
+    oid = 1007
+
+
 class TextArray(ArrayType):
     oid = 1009
+
+
+class VarcharArray(ArrayType):
+    oid = 1015
+
+
+class InetArray(ArrayType):
+    oid = 1041
+
+
+class UUIDArray(ArrayType):
+    oid = 2951
+
+
+class DateArray(ArrayType):
+    oid = 1182
+
+
+class TimeArray(ArrayType):
+    oid = 1183
+
+
+class TimestamptzArray(ArrayType):
+    oid = 1185
+
+
+class DecimalArray(ArrayType):
+    oid = 1231
+
+
+class JsonbArray(ArrayType):
+    oid = 3807
+
+
+class Int4RangeArray(ArrayType):
+    oid = 3905
+
+
+class Int8RangeArray(ArrayType):
+    oid = 3927
 
 
 class BlankPaddedString(StringType):
