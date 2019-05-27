@@ -17,17 +17,8 @@ from .schema import DatabaseSchemaEditor
 
 class DatabaseWrapper(BaseDatabaseWrapper):
 
-    vendor = 'postgres'
+    vendor = 'postgresql'
     display_name = 'PostgreSQL (egress)'
-
-    Database = Database
-
-    client_class = DatabaseClient
-    creation_class = DatabaseCreation
-    features_class = DatabaseFeatures
-    introspection_class = DatabaseIntrospection
-    ops_class = DatabaseOperations
-    SchemaEditorClass = DatabaseSchemaEditor
 
     data_types = {
         'AutoField': 'serial',
@@ -86,6 +77,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'endswith': "LIKE '%%' || {}",
         'iendswith': "LIKE '%%' || UPPER({})",
     }
+
+    Database = Database
+    SchemaEditorClass = DatabaseSchemaEditor
+
+    client_class = DatabaseClient
+    creation_class = DatabaseCreation
+    features_class = DatabaseFeatures
+    introspection_class = DatabaseIntrospection
+    ops_class = DatabaseOperations
 
     def get_new_connection(self, conn_params):
         connection = Database.connect(**conn_params)
