@@ -9,6 +9,9 @@ from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 from itertools import repeat
 
+# Positive/Negative infinity values for date types
+DATE_PINF = 0x7FFFFFFF
+DATE_NINF = -0x7FFFFFFF-1
 
 def infer_parser(ftype, fmod=-1):
     '''
@@ -315,6 +318,10 @@ class DateType(BaseType):
     @classmethod
     def parse(cls, value, size, tzinfo):
         val = struct.unpack(cls.fmt, value[:size])[0]
+        if val == DATE_PINF:
+            return datetime.date.max
+        if val == DATE_NINF:
+            return datetime.date.min
         return datetime.date(2000, 1, 1) + datetime.timedelta(days=val)
 
     @classmethod
@@ -354,6 +361,10 @@ class TimestampType(BaseType):
         if size == 0:
             return None
         val = struct.unpack(cls.fmt, value[:size])[0]
+        if val == DATE_PINF:
+            return datetime.datetime.max
+        if val == DATE_NINF:
+            return datetime.datetime.min
         return datetime.datetime(2000, 1, 1, tzinfo=tzinfo) + datetime.timedelta(microseconds=val)
 
 
